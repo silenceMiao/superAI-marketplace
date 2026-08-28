@@ -4,9 +4,9 @@ argument-hint: "<requirement_path> [session_id]"
 allowed-tools: Read, Write, Bash, Glob, Grep, Agent
 ---
 
-# /spl:prd
+# /superlooper:spl:prd
 
-`/spl:prd` 是 PRD 分段触发入口，只执行 `skills/superlooper/SKILL.md` 的流程一入口与会话准备、流程二需求分析与 PRD 审核。
+`/superlooper:spl:prd` 是 PRD 分段触发入口，只执行 `skills/superlooper/SKILL.md` 的流程一入口与会话准备、流程二需求分析与 PRD 审核。
 
 用户参数：`$ARGUMENTS`
 

@@ -4,9 +4,9 @@ argument-hint: "<session_id>"
 allowed-tools: Read, Write, Bash, Glob, Grep, Agent
 ---
 
-# /spl:design
+# /superlooper:spl:design
 
-`/spl:design` 是系统设计分段触发入口，只执行 `skills/superlooper/SKILL.md` 的流程四系统设计、初始化和初始化后模块拆分准备，不启动执行清单或编码。默认 `standard` 模式自动使用 `architect` 初始化建议完成初始化与模块拆分；`strict_review` 模式保留设计、初始化分类、初始化版本和模块拆分人工握手。
+`/superlooper:spl:design` 是系统设计分段触发入口，只执行 `skills/superlooper/SKILL.md` 的流程四系统设计、初始化和初始化后模块拆分准备，不启动执行清单或编码。默认 `standard` 模式自动使用 `architect` 初始化建议完成初始化与模块拆分；`strict_review` 模式保留设计、初始化分类、初始化版本和模块拆分人工握手。
 
 用户参数：`$ARGUMENTS`
 

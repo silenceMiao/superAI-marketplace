@@ -4,9 +4,9 @@ argument-hint: "<session_id>"
 allowed-tools: Read, Write, Bash, Glob, Grep, Agent
 ---
 
-# /spl:ui
+# /superlooper:spl:ui
 
-`/spl:ui` 是 UI 设计分段触发入口，只执行 `skills/superlooper/SKILL.md` 的流程三 UI 设计、交互与 HTML 预览审核，不执行系统设计、初始化、模块拆分、执行清单或编码。
+`/superlooper:spl:ui` 是 UI 设计分段触发入口，只执行 `skills/superlooper/SKILL.md` 的流程三 UI 设计、交互与 HTML 预览审核，不执行系统设计、初始化、模块拆分、执行清单或编码。
 
 用户参数：`$ARGUMENTS`
 

@@ -4,9 +4,9 @@ argument-hint: "<session_id>"
 allowed-tools: Read, Write, Bash, Glob, Grep, Agent
 ---
 
-# /spl:resume
+# /superlooper:spl:resume
 
-`/spl:resume` 是 session 恢复入口，不创建新 session，不跳过人工审核点。
+`/superlooper:spl:resume` 是 session 恢复入口，不创建新 session，不跳过人工审核点。
 
 用户参数：`$ARGUMENTS`
 

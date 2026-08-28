@@ -4,9 +4,9 @@ argument-hint: "[session_id]"
 allowed-tools: Read, Bash, Glob, Grep
 ---
 
-# /spl:doctor
+# /superlooper:spl:doctor
 
-`/spl:doctor` 是插件自检入口，不推进 Superlooper 业务流程。
+`/superlooper:spl:doctor` 是插件自检入口，不推进 Superlooper 业务流程。
 
 用户参数：`$ARGUMENTS`
 

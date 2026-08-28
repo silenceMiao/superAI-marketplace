@@ -4,9 +4,9 @@ argument-hint: "<session_id>"
 allowed-tools: Read, Bash, Glob, Grep
 ---
 
-# /spl:status
+# /superlooper:spl:status
 
-`/spl:status` 是只读状态入口，不推进 Superlooper 业务流程。
+`/superlooper:spl:status` 是只读状态入口，不推进 Superlooper 业务流程。
 
 用户参数：`$ARGUMENTS`
 

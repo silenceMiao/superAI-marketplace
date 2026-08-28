@@ -4,9 +4,9 @@ argument-hint: "<session_id>"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, Agent
 ---
 
-# /spl:run
+# /superlooper:spl:run
 
-`/spl:run` 是运行分段触发入口，执行 `skills/superlooper/SKILL.md` 的流程五、流程六和流程七。此命令必须基于已校验通过的 `module-split.json`、已审核 UI 产物和已完成的项目结构初始化继续执行，生成 `execution_manifest.json` 后先输出 `execution_summary.md` 等待用户确认，不提供 `/spl:manifest`。
+`/superlooper:spl:run` 是运行分段触发入口，执行 `skills/superlooper/SKILL.md` 的流程五、流程六和流程七。此命令必须基于已校验通过的 `module-split.json`、已审核 UI 产物和已完成的项目结构初始化继续执行，生成 `execution_manifest.json` 后先输出 `execution_summary.md` 等待用户确认，不提供 `/spl:manifest`。
 
 用户参数：`$ARGUMENTS`
 

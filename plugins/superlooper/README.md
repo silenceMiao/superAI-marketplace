@@ -24,7 +24,7 @@ Superlooper 是一个面向 Claude Code 的 AI 并行编排插件源码，用于
 - 项目结构初始化完成后生成模块拆分清单。
 - 根据初始化报告和模块拆分清单生成 `execution_manifest.json` 与执行摘要 `execution_summary.md`。
 - 通过 `scripts/run_execution_dag.py` 读取 `execution_manifest.json`、计算节点依赖顺序并写入可校验的 DAG 节点状态。
-- `scripts/run_execution_dag.py` 是 DAG state runner，只负责 DAG 结构核验、拓扑顺序和 `.dag.json` 状态记录；它不调度真实 subagent，不替代 `/spl:run` 主协议中的 code review、merge、test、apply 和需求反向校对门禁。
+- `scripts/run_execution_dag.py` 是 DAG state runner，只负责 DAG 结构核验、拓扑顺序和 `.dag.json` 状态记录；它不调度真实 subagent，不替代 `/superlooper:spl:run` 主协议中的 code review、merge、test、apply 和需求反向校对门禁。
 - 模块拆分、Manifest payload、动态 agent 约束和报告 validator 贯通 UI traceability 与 `brownfield-selective` 存量项目边界字段。
 - 使用插件静态 `agents/` 目录提供公共 agent 模板，其中 `agents/developer.md` 只作为动态 `module_*` 编码子代理模板。
 - 运行时按模块生成实际执行编码的 `module_*` agent。
@@ -51,15 +51,15 @@ Superlooper 是一个面向 Claude Code 的 AI 并行编排插件源码，用于
 /plugin install superlooper@superAI-marketplace
 ```
 
-安装后在目标项目根目录执行 `/spl:doctor`，再执行 `/spl requirements.md [session_id]`。
+安装后在目标项目根目录执行 `/superlooper:spl:doctor`，再执行 `/superlooper:spl requirements.md [session_id]`。Claude Code 会按插件名 `superlooper` 添加命名空间；源码中的 `commands/spl*.md` 路径和 `/spl...` internal canonical key 不是用户直接输入的命令。
 
 安装后进入目标项目根目录，运行：
 
 ```text
-/spl:doctor
+/superlooper:spl:doctor
 ```
 
-`/spl:doctor` 输出插件结构、脚本、schema、发布过滤自检结果。自检失败时，先修复插件安装或产物完整性，不启动业务流程。
+`/superlooper:spl:doctor` 输出插件结构、脚本、schema、发布过滤自检结果。自检失败时，先修复插件安装或产物完整性，不启动业务流程。
 
 ### 准备需求文档
 
@@ -69,14 +69,14 @@ Superlooper 是一个面向 Claude Code 的 AI 并行编排插件源码，用于
 requirements.md
 ```
 
-该文档是 `/spl` 七流程的输入。不要把需求正文直接写进命令参数。当前目录必须是目标项目根目录，不是插件源码目录。
+该文档是 `/superlooper:spl` 七流程的输入。不要把需求正文直接写进命令参数。当前目录必须是目标项目根目录，不是插件源码目录。
 
 ### 启动首次会话
 
 在目标项目根目录运行：
 
 ```text
-/spl requirements.md [session_id]
+/superlooper:spl requirements.md [session_id]
 ```
 
 未提供 `session_id` 时，Superlooper 会生成安全 session ID。首次启动会创建 `.superlooper/context/<session_id>/`、`.superlooper/reports/<session_id>/` 和 `.superlooper/state/<session_id>.json`，并进入流程一入口与会话准备、流程二需求分析与 PRD 审核。
@@ -91,23 +91,23 @@ requirements.md
 | strict_review 设计与清单审核 | `.superlooper/context/<session_id>/design/`、`module-split.json`、`execution_manifest.json` | `继续任务`、`生成执行清单`、`执行` 或 `开始并行开发` |
 | 需求反向校对审核 | `.superlooper/reports/<session_id>/requirement_alignment_report.md` | `需求校对通过，完成交付` |
 
-审核未通过时，直接输入自然语言反馈。Superlooper 会结合当前 session 和 phase 归一化为内部 canonical action，不要求重新运行完整 `/spl`。
+审核未通过时，直接输入自然语言反馈。Superlooper 会结合当前 session 和 phase 归一化为内部 canonical action，不要求重新运行完整 `/superlooper:spl`。
 
 ### 升级
 
 使用新的 `superlooper-<version>-install.zip` 更新插件后，先在目标项目根目录运行：
 
 ```text
-/spl:doctor
+/superlooper:spl:doctor
 ```
 
 旧 session 继续使用：
 
 ```text
-/spl:resume <session_id>
+/superlooper:spl:resume <session_id>
 ```
 
-不要为了继续旧 session 重新运行完整 `/spl requirements.md [session_id]`。
+不要为了继续旧 session 重新运行完整 `/superlooper:spl requirements.md [session_id]`。
 
 ### 卸载
 
@@ -118,20 +118,20 @@ requirements.md
 如果终端会话中断或需要继续当前任务，优先使用：
 
 ```text
-/spl:resume <session_id>
-/spl:status <session_id>
+/superlooper:spl:resume <session_id>
+/superlooper:spl:status <session_id>
 ```
 
-当目标项目中只有 1 个 active session，且用户在 `/spl` 中输入“继续任务”“PRD 不符合”“UI 要调整”等自然语言反馈时，`/spl` 必须优先沿该 active session 调用恢复语义，不得新建 session。存在多个 active session 时，必须先让用户选择 session。
+当目标项目中只有 1 个 active session，且用户在 `/superlooper:spl` 中输入“继续任务”“PRD 不符合”“UI 要调整”等自然语言反馈时，`/superlooper:spl` 必须优先沿该 active session 调用恢复语义，不得新建 session。存在多个 active session 时，必须先让用户选择 session。
 
 ### 常见失败处理
 
 | 现象 | 处理方式 |
 | --- | --- |
-| 看不到 `/spl` 或 `/spl:doctor` | 重新检查 install artifact 安装位置，再运行 Claude Code plugin 校验。 |
-| `/spl:doctor` 失败 | 按自检输出修复插件结构、脚本编译、schema 或发布过滤问题；修复前不启动业务流程。 |
-| `requirements.md` 不存在 | 在目标项目根目录创建真实需求文件后，再运行 `/spl requirements.md [session_id]`。 |
-| 存在多个 active session | 先运行 `/spl:status <session_id>` 确认目标 session，再使用 `/spl:resume <session_id>`。 |
+| 看不到 `/superlooper:spl` 或 `/superlooper:spl:doctor` | 重新检查 install artifact 安装位置，再运行 Claude Code plugin 校验。 |
+| `/superlooper:spl:doctor` 失败 | 按自检输出修复插件结构、脚本编译、schema 或发布过滤问题；修复前不启动业务流程。 |
+| `requirements.md` 不存在 | 在目标项目根目录创建真实需求文件后，再运行 `/superlooper:spl requirements.md [session_id]`。 |
+| 存在多个 active session | 先运行 `/superlooper:spl:status <session_id>` 确认目标 session，再使用 `/superlooper:spl:resume <session_id>`。 |
 | apply 冲突已人工处理 | 回复 `应用冲突已处理，重新应用`，只触发重新应用，不直接完成交付。 |
 
 ### 自检
@@ -139,14 +139,14 @@ requirements.md
 运行：
 
 ```text
-/spl:doctor [session_id]
+/superlooper:spl:doctor [session_id]
 ```
 
-`/spl:doctor` 只执行插件结构、脚本、schema、发布过滤和可选 session 契约自检，不推进业务流程。
+`/superlooper:spl:doctor` 只执行插件结构、脚本、schema、发布过滤和可选 session 契约自检，不推进业务流程。
 
 ### 入口边界
 
-不提供 `/spl:manifest`。执行清单生成归入 `/spl:run`。
+不提供 `/superlooper:spl:manifest`。执行清单生成归入 `/superlooper:spl:run`。
 
 ## 技术引用
 
@@ -156,8 +156,8 @@ requirements.md
 | 运行入口 | `skills` 目录下的 `superlooper/SKILL.md` | 承载 Superlooper 主调度协议 |
 | 开发入口 | `skills` 目录下的 `superlooper-dev/SKILL.md` | 固化插件源码开发前必读上下文，减少每轮手动输入 |
 | 静态 agent | `agents/*.md` | 定义需求、设计、影响分析、开发、审查、合并、测试、应用和 PRD 反向校对角色 |
-| Slash commands | `commands/` | 提供 `/spl`、`/spl:prd`、`/spl:ui`、`/spl:design`、`/spl:run`、`/spl:status`、`/spl:resume`、`/spl:doctor` 用户入口；不提供 `/spl:manifest` |
-| 声明式交互配置 | `configs/interaction-flow.json` | 声明 `/spl` 系列公开命令、阶段入口、内部 canonical action、推荐握手回复和别名映射，禁止暴露 `/spl:manifest` |
+| Slash commands | `commands/` | 提供 `/superlooper:spl`、`/superlooper:spl:prd`、`/superlooper:spl:ui`、`/superlooper:spl:design`、`/superlooper:spl:run`、`/superlooper:spl:status`、`/superlooper:spl:resume`、`/superlooper:spl:doctor` 用户入口；不提供 `/superlooper:spl:manifest` |
+| 声明式交互配置 | `configs/interaction-flow.json` | 声明 `/spl` 系列内部 canonical key、阶段入口、推荐握手回复和别名映射；用户安装后调用 `/superlooper:spl` 系列，不提供 `/superlooper:spl:manifest` |
 | Hooks 目录 | `hooks/` | 预留插件 hooks，当前仅保留骨架 |
 | 可执行工具目录 | `bin/` | 提供 `bin/spl` 最小 CLI 路由，当前只转发 doctor 自检，不定义第二套业务协议 |
 | 输出样式目录 | `output-styles/` | 预留 Claude Code 输出样式，当前仅保留骨架 |
@@ -166,7 +166,7 @@ requirements.md
 | 契约 schema | `schemas/*.schema.json` | 描述模块拆分、执行 Manifest、产物 Manifest 的 JSON 结构 |
 | 项目初始化 | `scripts/initialize_project_structure.py` | 在上游自校对通过后、正式模块拆分和编码前初始化最小项目结构 |
 | 契约校验 | `scripts/validate_miao_contracts.py` | 校验 Manifest、DAG、agent 文件、模块产物声明、初始化报告、执行摘要、上游自校对报告、变更影响分析报告和需求反向校对报告 |
-| DAG state runner | `scripts/run_execution_dag.py` | 只负责 DAG 结构核验、拓扑顺序和 `.dag.json` 状态记录；不调度真实 subagent，不替代 `/spl:run` 主协议中的 code review、merge、test、apply 和需求反向校对门禁 |
+| DAG state runner | `scripts/run_execution_dag.py` | 只负责 DAG 结构核验、拓扑顺序和 `.dag.json` 状态记录；不调度真实 subagent，不替代 `/superlooper:spl:run` 主协议中的 code review、merge、test、apply 和需求反向校对门禁 |
 | 执行摘要 | `scripts/build_execution_summary.py` | 汇总初始化、module-split、execution_manifest 和真实 `upstream_alignment.md` 自校对结果，生成默认执行前人工握手报告 |
 | 产物合并 | `scripts/merge_artifacts.py` | 将模块产物合并到 `.superlooper/merged/<session_id>/` |
 | 工作区应用 | `scripts/apply_to_workspace.py` | 将合并产物应用到目标项目根目录 |
@@ -200,7 +200,7 @@ superlooper/
 │   │   └── SKILL.md                # 插件运行时主调度协议
 │   └── superlooper-dev/
 │       └── SKILL.md                # 插件源码开发入口
-├── commands/                       # /spl 命令入口
+├── commands/                       # /superlooper:spl 命令入口
 │   ├── spl.md
 │   └── spl/
 │       ├── prd.md
@@ -321,7 +321,7 @@ superlooper/
 
 `update_session.py` 在成功写入 state 后会追加 `.superlooper/events/<session_id>.jsonl`，记录 phase、命令、生成文件、报告、下一步动作、UI 状态、反馈报告、影响分析报告、失效产物、回退目标、用户输入归一化结果和待用户选择项等观测字段，不写入密钥、token、环境变量或原始需求正文。
 
-安装态脚本区分两个根目录：`plugin_root` 是插件源码或安装根，用于读取静态 `agents/`、`schemas/`、`configs/`、`commands/` 和 `scripts/`；`workspace_root` 是目标项目根，只用于写入 `.superlooper/` 与 `.claude/agents/generated/superlooper/<session_id>/` 运行时产物。README 中的 `python scripts/...` 命令均表示插件根内脚本；安装态由 `/spl` 命令从插件根调用脚本，并把目标项目根作为 `--workspace-root` 参数传入。
+安装态脚本区分两个根目录：`plugin_root` 是插件源码或安装根，用于读取静态 `agents/`、`schemas/`、`configs/`、`commands/` 和 `scripts/`；`workspace_root` 是目标项目根，只用于写入 `.superlooper/` 与 `.claude/agents/generated/superlooper/<session_id>/` 运行时产物。README 中的 `python scripts/...` 命令均表示插件根内脚本；安装态由 `/superlooper:spl` 命令从插件根调用脚本，并把目标项目根作为 `--workspace-root` 参数传入。
 
 ## 常用命令
 
@@ -358,19 +358,19 @@ superlooper/
 
 ## Slash Commands
 
-Superlooper 实体化命令统一使用 `/spl` 前缀。普通自然语言代码修改请求不会自动启动完整七流程。
+Superlooper 实体化命令统一使用 `/superlooper:spl` 前缀。普通自然语言代码修改请求不会自动启动完整七流程。
 
 ### 入口触发规则
 
-用户不需要记忆固定句子。存在 active session 时，自然语言反馈先结合 session state、phase、`project_initialized` 和 `change_impact_report` 归一化为内部 canonical action；语义不明确时输出候选动作让用户选择，不自动重跑 `/spl`。`/spl` 总入口在创建新 session 前必须先检查 active session；单 active session 优先恢复，多 active session 必须要求用户选择。
+用户不需要记忆固定句子。存在 active session 时，自然语言反馈先结合 session state、phase、`project_initialized` 和 `change_impact_report` 归一化为内部 canonical action；语义不明确时输出候选动作让用户选择，不自动重跑 `/superlooper:spl`。`/superlooper:spl` 总入口在创建新 session 前必须先检查 active session；单 active session 优先恢复，多 active session 必须要求用户选择。
 
 | 类型 | 命令 | 是否推进业务流程 |
 | --- | --- | --- |
-| 总入口 | `/spl <requirement_path> [session_id]` | 是，进入流程一和流程二 |
-| 分段入口 | `/spl:prd`、`/spl:ui`、`/spl:design`、`/spl:run` | 是，按对应流程推进 |
-| 状态入口 | `/spl:status <session_id>` | 否，只读查看状态 |
-| 恢复入口 | `/spl:resume <session_id>` | 按 state 恢复，不跳过人工审核 |
-| 自检入口 | `/spl:doctor [session_id]` | 否，只执行自检 |
+| 总入口 | `/superlooper:spl <requirement_path> [session_id]` | 是，进入流程一和流程二 |
+| 分段入口 | `/superlooper:spl:prd`、`/superlooper:spl:ui`、`/superlooper:spl:design`、`/superlooper:spl:run` | 是，按对应流程推进 |
+| 状态入口 | `/superlooper:spl:status <session_id>` | 否，只读查看状态 |
+| 恢复入口 | `/superlooper:spl:resume <session_id>` | 按 state 恢复，不跳过人工审核 |
+| 自检入口 | `/superlooper:spl:doctor [session_id]` | 否，只执行自检 |
 
 `configs/interaction-flow.json` 只声明公开命令、阶段握手状态、内部 canonical action 和别名映射，不作为触发规则来源。
 
@@ -378,16 +378,16 @@ Superlooper 实体化命令统一使用 `/spl` 前缀。普通自然语言代码
 
 | 命令 | 说明 |
 | --- | --- |
-| `/spl <requirement_path> [session_id]` | 总入口，创建 session 并进入流程一入口与会话准备、流程二需求分析与 PRD 审核。 |
-| `/spl:prd <requirement_path> [session_id]` | 只执行流程一入口与会话准备、流程二需求分析与 PRD 审核。 |
-| `/spl:ui <session_id>` | 只执行流程三 UI 设计、交互与 HTML 预览审核。 |
-| `/spl:design <session_id>` | 只执行流程四系统设计、自动初始化和初始化后模块拆分准备；`strict_review` 模式保留初始化握手。 |
-| `/spl:run <session_id>` | 执行流程五执行清单、动态 agent 与执行摘要准备，用户确认摘要后执行流程六和流程七。 |
-| `/spl:status <session_id>` | 查看 session 当前状态，不推进业务流程。 |
-| `/spl:resume <session_id>` | 从 session state 推导下一步并恢复，不跳过 PRD、UI、执行摘要和最终 PRD 反向校对审核。 |
-| `/spl:doctor [session_id]` | 执行插件结构、脚本、schema 和 session 自检，不推进业务流程。 |
+| `/superlooper:spl <requirement_path> [session_id]` | 总入口，创建 session 并进入流程一入口与会话准备、流程二需求分析与 PRD 审核。 |
+| `/superlooper:spl:prd <requirement_path> [session_id]` | 只执行流程一入口与会话准备、流程二需求分析与 PRD 审核。 |
+| `/superlooper:spl:ui <session_id>` | 只执行流程三 UI 设计、交互与 HTML 预览审核。 |
+| `/superlooper:spl:design <session_id>` | 只执行流程四系统设计、自动初始化和初始化后模块拆分准备；`strict_review` 模式保留初始化握手。 |
+| `/superlooper:spl:run <session_id>` | 执行流程五执行清单、动态 agent 与执行摘要准备，用户确认摘要后执行流程六和流程七。 |
+| `/superlooper:spl:status <session_id>` | 查看 session 当前状态，不推进业务流程。 |
+| `/superlooper:spl:resume <session_id>` | 从 session state 推导下一步并恢复，不跳过 PRD、UI、执行摘要和最终 PRD 反向校对审核。 |
+| `/superlooper:spl:doctor [session_id]` | 执行插件结构、脚本、schema 和 session 自检，不推进业务流程。 |
 
-不提供 `/spl:manifest`。执行清单生成能力归入 `/spl:run`。
+不提供 `/superlooper:spl:manifest`。执行清单生成能力归入 `/superlooper:spl:run`。
 
 ## 编码规范
 
@@ -447,7 +447,7 @@ Superlooper 当前采用七流程叙述。七流程是当前主调度协议的�
 6. 模块实现与代码审查门禁：多个 `module_*` agent 并行写入 `.superlooper/outputs/<session_id>/<module_id>/`，每个模块产物通过 `artifact_manifest.json` 支撑后续审查、合并、测试和应用；`code-reviewer` 审查所有模块产物，输出 `.superlooper/reports/<session_id>/code_review_report.md`；只有 `code_review_status=PASS` 且报告校验通过才能进入合并；若审查失败，用户回复 `代码审查未通过，返回修正` 后，`resume_session.py` 写入 `code_review_feedback.md`、保持 `rollback_target_phase=run`，并只回到模块修正与代码审查链路。
 7. 合并、测试、应用与交付报告：`system_merger` 调用 `scripts/merge_artifacts.py`，只有 `merge_report.json` 的 `status=success` 才能进入测试；`tester` 以 `.superlooper/merged/<session_id>/` 为测试对象，只有 `test_status=PASS` 且测试报告校验通过才能进入应用；测试失败时，用户回复 `测试未通过，返回修正` 后写入 `test_feedback.md` 并回到 run 局部返工；`workspace_applier` 调用 `scripts/apply_to_workspace.py`，默认不覆盖已有差异文件，用户确认具体路径后使用 `--overwrite-file`；`apply_report.json` 必须包含 `workspace_validation.status=PASS`、`failed_file_count=0` 和空 `failures` 后才生成 `session_report.md`，应用冲突处理完成后用户回复 `应用冲突已处理，重新应用` 只触发重新应用，不直接完成；再由 `requirement-verifier` 生成 `requirement_alignment_report.md`；用户回复 `需求校对通过，完成交付` 后，`resume_session.py` 会重新校验报告为 `PASS` 且未满足需求数和未检查验收数均为 `0`，通过后才输出最终完成结论。
 
-受控回退不新增主流程。PRD 审核未通过时，用户自由文本先归一化为 `PRD未通过，按反馈重新分析` 后回到 analyst；UI 审核阶段出现需求本身变化时，state 切回 `prd/running`，写入 `prd_feedback.md`，并将 `ui_status` 置为 `CHANGES_REQUESTED`；设计审核未通过且未初始化时，用户自由文本先归一化为 `设计未通过，按反馈重新设计` 后回到 architect；代码审查、测试、应用和需求反向校对失败均保留当前 session 因果链，不重新启动 `/spl` 全流程；初始化完成后的深层变更必须先归一化为 `需求变更，执行影响分析` 并生成 `change_impact_report.md`，经 `影响分析通过，执行局部重跑` 确认后只重跑受影响产物。
+受控回退不新增主流程。PRD 审核未通过时，用户自由文本先归一化为 `PRD未通过，按反馈重新分析` 后回到 analyst；UI 审核阶段出现需求本身变化时，state 切回 `prd/running`，写入 `prd_feedback.md`，并将 `ui_status` 置为 `CHANGES_REQUESTED`；设计审核未通过且未初始化时，用户自由文本先归一化为 `设计未通过，按反馈重新设计` 后回到 architect；代码审查、测试、应用和需求反向校对失败均保留当前 session 因果链，不重新启动 `/superlooper:spl` 全流程；初始化完成后的深层变更必须先归一化为 `需求变更，执行影响分析` 并生成 `change_impact_report.md`，经 `影响分析通过，执行局部重跑` 确认后只重跑受影响产物。
 
 ### 需求阶段状态流转
 
@@ -497,9 +497,9 @@ skills/superlooper/SKILL.md
 .claude-plugin/plugin.json
 ```
 
-`.claude/CLAUDE.md` 只用于本机开发，已通过 `.gitignore` 排除，不属于插件发布源码。插件安装后的用户入口统一以 `/spl` 系列命令为准。
+`.claude/CLAUDE.md` 只用于本机开发，已通过 `.gitignore` 排除，不属于插件发布源码。插件安装后的用户入口统一以 `/superlooper:spl` 系列命令为准。
 
-发布脚本支持两种实体化模式：`source` 用于源码分发，保留 `tests/` 和 `docs/design/`；`install` 用于安装分发，排除 `tests/` 和 `docs/design/`。两种模式都会排除 `.superlooper/`、`.claude/`、`.learnings/`、`docs/superpowers/`、`dist/`、`__pycache__/`、`.env`、`.env.*`，并始终保留 `.claude-plugin/plugin.json`、`/spl` 命令、UI agent、impact analyzer、UI flow、执行摘要脚本、自然语言归一化脚本、doctor 脚本和 `bin/spl` doctor 路由。发布清单会执行 secret scan；`build_release_archive.py` 捕获发布打包错误并输出单行失败原因，且 zip 内部路径必须与 release manifest 完全一致。
+发布脚本支持两种实体化模式：`source` 用于源码分发，保留 `tests/` 和 `docs/design/`；`install` 用于安装分发，排除 `tests/` 和 `docs/design/`。两种模式都会排除 `.superlooper/`、`.claude/`、`.learnings/`、`docs/superpowers/`、`dist/`、`__pycache__/`、`.env`、`.env.*`，并始终保留 `.claude-plugin/plugin.json`、`/superlooper:spl` 命令、UI agent、impact analyzer、UI flow、执行摘要脚本、自然语言归一化脚本、doctor 脚本和 `bin/spl` doctor 路由。发布清单会执行 secret scan；`build_release_archive.py` 捕获发布打包错误并输出单行失败原因，且 zip 内部路径必须与 release manifest 完全一致。
 
 `build_session_report.py`、`merge_artifacts.py`、`apply_to_workspace.py` 新增 `--redact-paths`，用于把报告中的 `workspace_root` 脱敏为 `.`，并尽量把工作区内绝对路径写成相对路径；默认行为保持不变。
 

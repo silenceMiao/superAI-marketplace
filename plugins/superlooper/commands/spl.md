@@ -4,9 +4,9 @@ argument-hint: "<requirement_path> [session_id] [prompt]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, Skill, Agent
 ---
 
-# /spl
+# /superlooper:spl
 
-你是 Superlooper 主调度器。`/spl` 是 Superlooper 安装后的总触发入口。必须遵循 `skills/superlooper/SKILL.md` 的主体调度协议，不在主会话直接编写目标业务代码。
+你是 Superlooper 主调度器。`/superlooper:spl` 是 Superlooper 安装后的总触发入口。必须遵循 `skills/superlooper/SKILL.md` 的主体调度协议，不在主会话直接编写目标业务代码。
 
 用户参数：`$ARGUMENTS`
 
