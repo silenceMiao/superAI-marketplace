@@ -1,4 +1,5 @@
 import argparse
+import json
 import os
 import subprocess
 import sys
@@ -38,6 +39,19 @@ REQUIRED_AGENT_FILES = [
     "agents/requirement-verifier.md",
     "agents/impact-analyzer.md",
 ]
+CODEX_SKILL_FILES = [
+    "codex/skills/superlooper/SKILL.md",
+    "codex/skills/superlooper-prd/SKILL.md",
+    "codex/skills/superlooper-ui/SKILL.md",
+    "codex/skills/superlooper-design/SKILL.md",
+    "codex/skills/superlooper-run/SKILL.md",
+    "codex/skills/superlooper-status/SKILL.md",
+    "codex/skills/superlooper-resume/SKILL.md",
+    "codex/skills/superlooper-doctor/SKILL.md",
+]
+CODEX_DISPATCHER_DAG = "mod_* -> task_code_review -> task_merge -> task_integration_test -> task_apply_to_workspace"
+
+
 REQUIRED_RELEASE_EXCLUDE = [
     ".superlooper/runtime.txt",
     ".claude/CLAUDE.md",
@@ -58,15 +72,17 @@ class DoctorError(Exception):
 
 
 class DoctorRunner:
-    def __init__(self, workspace_root, session_id=None, plugin_root=None):
+    def __init__(self, workspace_root, session_id=None, plugin_root=None, platform="claude"):
         self.workspace_root = Path(workspace_root).resolve()
         self.plugin_root = Path(plugin_root).resolve() if plugin_root else Path(__file__).resolve().parents[1]
         self.session_id = session_id
+        self.platform = platform
         self.packager = PluginPackager(root=self.plugin_root, mode="install")
         self.results = []
 
     def run(self):
-        self._run_check("plugin_validate", self.check_plugin_validate)
+        if self.platform == "claude":
+            self._run_check("plugin_validate", self.check_plugin_validate)
         self._run_check("python_compile", self.check_python_compile)
         self._run_check("commands_contract", self.check_commands_contract)
         self._run_check("schema_contract", self.check_schema_contract)
@@ -74,6 +90,9 @@ class DoctorRunner:
         self._run_check("forbidden_manifest_command", self.check_forbidden_manifest_command)
         self._run_check("release_filter", self.check_release_filter)
         self._run_check("session_contract", self.check_session_contract)
+        self._run_check("codex_plugin", self.check_codex_plugin)
+        self._run_check("codex_skills", self.check_codex_skills)
+        self._run_check("codex_dispatcher", self.check_codex_dispatcher)
         for check_name, status, message in self.results:
             self._print_line(f"{check_name}: {status} - {message}")
         return 1 if any(status == "FAIL" for _, status, _ in self.results) else 0
@@ -96,6 +115,10 @@ class DoctorRunner:
         scripts = sorted(path for path in (self.plugin_root / "scripts").glob("*.py") if path.is_file())
         if not scripts:
             return "FAIL", "scripts 目录下没有可编译的 Python 文件"
+        if self.platform == "codex":
+            for path in scripts:
+                compile(path.read_text(encoding="utf-8"), str(path), "exec")
+            return "PASS", f"compiled {len(scripts)} scripts"
         command = [sys.executable, "-m", "py_compile", *[str(path) for path in scripts]]
         completed = self._run_command(command)
         if completed.returncode != 0:
@@ -119,6 +142,51 @@ class DoctorRunner:
         if missing:
             return "FAIL", "missing: " + ", ".join(missing)
         return "PASS", f"found {len(REQUIRED_AGENT_FILES)} agent files"
+
+    def check_codex_plugin(self):
+        claude_manifest_path = self.plugin_root / ".claude-plugin" / "plugin.json"
+        codex_manifest_path = self.plugin_root / ".codex-plugin" / "plugin.json"
+        if not codex_manifest_path.is_file():
+            return "FAIL", "missing: .codex-plugin/plugin.json"
+        claude_manifest = json.loads(claude_manifest_path.read_text(encoding="utf-8"))
+        codex_manifest = json.loads(codex_manifest_path.read_text(encoding="utf-8"))
+        fields = ("name", "version", "license")
+        mismatched = [field for field in fields if codex_manifest.get(field) != claude_manifest.get(field)]
+        if mismatched:
+            return "FAIL", "mismatch with Claude manifest: " + ", ".join(mismatched)
+        return "PASS", "Codex name, version, and license match Claude manifest"
+
+    def check_codex_skills(self):
+        invalid = []
+        for relative in CODEX_SKILL_FILES:
+            path = self.plugin_root / relative
+            if not path.is_file():
+                invalid.append(relative)
+                continue
+            lines = path.read_text(encoding="utf-8").splitlines()
+            if not lines or lines[0].strip() != "---":
+                invalid.append(relative)
+                continue
+            try:
+                frontmatter_end = next(index for index, line in enumerate(lines[1:], start=1) if line.strip() == "---")
+            except StopIteration:
+                invalid.append(relative)
+                continue
+            frontmatter = "\n".join(lines[1:frontmatter_end])
+            if "name:" not in frontmatter or "description:" not in frontmatter:
+                invalid.append(relative)
+        if invalid:
+            return "FAIL", "missing or invalid frontmatter: " + ", ".join(invalid)
+        return "PASS", f"found {len(CODEX_SKILL_FILES)} Codex skills"
+
+    def check_codex_dispatcher(self):
+        relative = "codex/dispatcher/README.md"
+        path = self.plugin_root / relative
+        if not path.is_file():
+            return "FAIL", f"missing: {relative}"
+        if CODEX_DISPATCHER_DAG not in path.read_text(encoding="utf-8"):
+            return "FAIL", "missing full Codex dispatcher DAG"
+        return "PASS", "Codex dispatcher declares the full DAG"
 
     def check_forbidden_manifest_command(self):
         path = self.plugin_root / FORBIDDEN_COMMAND_FILE
@@ -183,13 +251,19 @@ def parse_args(argv=None):
     parser.add_argument("--workspace-root", default=os.getenv("SUPERLOOPER_WORKSPACE_ROOT", os.getcwd()), help="目标项目根目录，默认使用 SUPERLOOPER_WORKSPACE_ROOT 或当前目录。")
     parser.add_argument("--plugin-root", default=os.getenv("SUPERLOOPER_PLUGIN_ROOT"), help="插件源码或安装根目录，默认使用当前脚本所在插件根。")
     parser.add_argument("--session-id", help="执行会话 ID。")
+    parser.add_argument("--platform", choices=("claude", "codex"), default="claude", help="运行 doctor 的平台。")
     return parser.parse_args(argv)
 
 
 def main(argv=None):
     args = parse_args(argv)
     try:
-        runner = DoctorRunner(workspace_root=args.workspace_root, session_id=args.session_id, plugin_root=args.plugin_root)
+        runner = DoctorRunner(
+            workspace_root=args.workspace_root,
+            session_id=args.session_id,
+            plugin_root=args.plugin_root,
+            platform=args.platform,
+        )
         return runner.run()
     except (DoctorError, PackageError, ValueError) as exc:
         print(f"doctor failed: {exc}", file=sys.stderr)

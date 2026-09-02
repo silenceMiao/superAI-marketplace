@@ -22,10 +22,24 @@
         "module_split_path",
         "agents_path",
         "runtime_agents_path",
-        "registered_agents_path",
         "outputs_path",
         "merged_path",
         "reports_path"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "required": ["platform_registration"]
+          },
+          "then": {
+            "not": {
+              "required": ["registered_agents_path"]
+            }
+          },
+          "else": {
+            "required": ["registered_agents_path"]
+          }
+        }
       ],
       "properties": {
         "prd_path": { "type": "string", "minLength": 1 },
@@ -34,6 +48,18 @@
         "agents_path": { "type": "string", "minLength": 1 },
         "runtime_agents_path": { "type": "string", "minLength": 1 },
         "registered_agents_path": { "type": "string", "minLength": 1 },
+        "platform_registration": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["platform", "dispatcher_path"],
+          "properties": {
+            "platform": { "const": "codex" },
+            "dispatcher_path": {
+              "type": "string",
+              "pattern": "^\\.superlooper/agents/[^/]+/codex-dispatch\\.json$"
+            }
+          }
+        },
         "outputs_path": { "type": "string", "minLength": 1 },
         "merged_path": { "type": "string", "minLength": 1 },
         "reports_path": { "type": "string", "minLength": 1 }

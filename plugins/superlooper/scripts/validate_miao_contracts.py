@@ -590,10 +590,11 @@ class ContractValidator:
         if manifest.get("granularity") != "module":
             self.errors.append("Execution Manifest granularity 必须为 module。")
         context = manifest.get("context")
+        platform = "claude"
         if not isinstance(context, dict):
             self.errors.append("Execution Manifest context 必须是 object。")
         else:
-            self._validate_execution_context(context)
+            platform = self._validate_execution_context(context)
         dag = manifest.get("dag")
         if not isinstance(dag, dict):
             self.errors.append("Execution Manifest dag 必须是 object。")
@@ -629,12 +630,14 @@ class ContractValidator:
                     if agent != expected_agent:
                         self.errors.append(f"{path}.agent 必须为 {expected_agent}。")
                     self._validate_module_payload_anchors(path, node.get("payload"), module_id)
-                    self._validate_dynamic_agent(agent, node.get("payload"))
+                    self._validate_dynamic_agent(agent, node.get("payload"), require_registered=platform == "claude")
             elif isinstance(agent, str):
                 self._validate_static_agent(agent)
         self._validate_module_node_set(node_map)
         self._validate_dag_links(node_map)
         self._validate_system_chain(node_map)
+        if platform == "codex" and isinstance(context, dict):
+            self._validate_codex_dispatch(manifest, context)
         return manifest
 
     def validate_artifacts(self, required=False):
@@ -751,7 +754,45 @@ class ContractValidator:
             self.errors.append(f"{module_id}.verification.commands 存在 skipped 时必须在 verification.summary 或 notes 说明原因。")
 
     def _validate_execution_context(self, context):
-        fields = ["prd_path", "design_docs_path", "module_split_path", "agents_path", "runtime_agents_path", "registered_agents_path", "outputs_path", "merged_path", "reports_path"]
+        registration = context.get("platform_registration")
+        platform = "claude"
+        if registration is None:
+            fields = [
+                "prd_path",
+                "design_docs_path",
+                "module_split_path",
+                "agents_path",
+                "runtime_agents_path",
+                "registered_agents_path",
+                "outputs_path",
+                "merged_path",
+                "reports_path",
+            ]
+        else:
+            platform = "codex"
+            fields = [
+                "prd_path",
+                "design_docs_path",
+                "module_split_path",
+                "agents_path",
+                "runtime_agents_path",
+                "outputs_path",
+                "merged_path",
+                "reports_path",
+            ]
+            if not isinstance(registration, dict):
+                self.errors.append("Execution Manifest context.platform_registration 必须是 object。")
+            else:
+                if registration.get("platform") != "codex":
+                    self.errors.append("Execution Manifest context.platform_registration.platform 必须为 codex。")
+                dispatcher_path = registration.get("dispatcher_path")
+                expected_dispatcher_path = f".superlooper/agents/{self.session_id}/codex-dispatch.json"
+                if not isinstance(dispatcher_path, str) or self._normalize_context_path(dispatcher_path) != self._normalize_context_path(expected_dispatcher_path):
+                    self.errors.append(f"Execution Manifest context.platform_registration.dispatcher_path 必须为 {expected_dispatcher_path}。")
+                elif not self._safe_relative_path(dispatcher_path, allow_protected=True):
+                    self.errors.append(f"Execution Manifest context.platform_registration.dispatcher_path 不是安全相对路径：{dispatcher_path}")
+            if "registered_agents_path" in context:
+                self.errors.append("Codex Execution Manifest context 不得包含 registered_agents_path。")
         for field in fields:
             self._require_string(context, field, "Execution Manifest context")
             value = context.get(field)
@@ -762,15 +803,17 @@ class ContractValidator:
             "design_docs_path": f".superlooper/context/{self.session_id}/design/",
             "module_split_path": f".superlooper/manifests/{self.session_id}/module-split.json",
             "runtime_agents_path": f".superlooper/agents/{self.session_id}/",
-            "registered_agents_path": f".claude/agents/generated/superlooper/{self.session_id}/",
             "outputs_path": f".superlooper/outputs/{self.session_id}/",
             "merged_path": f".superlooper/merged/{self.session_id}/",
             "reports_path": f".superlooper/reports/{self.session_id}/",
         }
+        if platform == "claude":
+            expected_paths["registered_agents_path"] = f".claude/agents/generated/superlooper/{self.session_id}/"
         for field, expected in expected_paths.items():
             value = context.get(field)
             if isinstance(value, str) and self._normalize_context_path(value) != self._normalize_context_path(expected):
                 self.errors.append(f"Execution Manifest context.{field} 必须为 {expected}。")
+        return platform
 
     def _normalize_context_path(self, value):
         return value.replace("\\", "/").rstrip("/")
@@ -890,24 +933,53 @@ class ContractValidator:
             return
         self._validate_agent_frontmatter(path, agent)
 
-    def _validate_dynamic_agent(self, agent, payload=None):
+    def _validate_dynamic_agent(self, agent, payload=None, require_registered=True):
         runtime_path = self.runtime_agents_dir / f"{agent}.md"
+        if not runtime_path.exists():
+            self.errors.append(f"动态 agent 运行时源文件不存在：{runtime_path}")
+            return
+        self._validate_agent_frontmatter(runtime_path, agent)
+        try:
+            runtime_content = runtime_path.read_text(encoding="utf-8")
+        except OSError as exc:
+            self.errors.append(f"动态 agent 文件内容读取失败：{agent}: {exc}")
+            return
+        self._validate_dynamic_agent_constraints(agent, runtime_content, payload)
+        if not require_registered:
+            return
         registered_path = self.registered_agents_dir / f"{agent}.md"
-        for path, label in [(runtime_path, "动态 agent 运行时源文件"), (registered_path, "动态 agent 注册入口")]:
-            if not path.exists():
-                self.errors.append(f"{label}不存在：{path}")
-                continue
-            self._validate_agent_frontmatter(path, agent)
-        if runtime_path.exists() and registered_path.exists():
-            try:
-                runtime_content = runtime_path.read_text(encoding="utf-8")
-                registered_content = registered_path.read_text(encoding="utf-8")
-            except OSError as exc:
-                self.errors.append(f"动态 agent 文件内容读取失败：{agent}: {exc}")
-                return
-            if runtime_content != registered_content:
-                self.errors.append(f"动态 agent 运行时源文件与注册入口内容不一致：{agent}.md")
-            self._validate_dynamic_agent_constraints(agent, runtime_content, payload)
+        if not registered_path.exists():
+            self.errors.append(f"动态 agent 注册入口不存在：{registered_path}")
+            return
+        self._validate_agent_frontmatter(registered_path, agent)
+        try:
+            registered_content = registered_path.read_text(encoding="utf-8")
+        except OSError as exc:
+            self.errors.append(f"动态 agent 注册入口内容读取失败：{agent}: {exc}")
+            return
+        if runtime_content != registered_content:
+            self.errors.append(f"动态 agent 运行时源文件与注册入口内容不一致：{agent}.md")
+
+    def _validate_codex_dispatch(self, manifest, context):
+        registration = context.get("platform_registration")
+        if not isinstance(registration, dict):
+            return
+        dispatcher_path = registration.get("dispatcher_path")
+        if not isinstance(dispatcher_path, str):
+            return
+        dispatch_path = self.root / dispatcher_path
+        if not dispatch_path.exists():
+            self.errors.append(f"Codex dispatcher 文件不存在：{dispatch_path}")
+            return
+        dispatch = self._read_json(dispatch_path)
+        if not isinstance(dispatch, dict):
+            self.errors.append("Codex dispatcher 顶层必须是 object。")
+            return
+        if dispatch.get("platform") != "codex":
+            self.errors.append("Codex dispatcher.platform 必须为 codex。")
+        expected_nodes = manifest.get("dag", {}).get("nodes")
+        if dispatch.get("nodes") != expected_nodes:
+            self.errors.append("Codex dispatcher.nodes 必须与 Execution Manifest DAG 节点完全一致。")
 
     def _validate_dynamic_agent_constraints(self, agent, content, payload):
         module_id = agent.removeprefix("module_")
@@ -1775,7 +1847,10 @@ class ContractValidator:
             key, value = line.split(":", 1)
             key = key.strip()
             value = value.strip().strip("'\"")
-            if value:
+            if value == "[]":
+                result[key] = []
+                current_key = None
+            elif value:
                 result[key] = value
                 current_key = None
             else:

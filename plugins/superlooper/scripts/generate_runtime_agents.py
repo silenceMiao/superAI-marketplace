@@ -42,32 +42,38 @@ class RuntimeAgentGenerationError(Exception):
 
 
 class RuntimeAgentGenerator:
-    def __init__(self, workspace_root, session_id, agents_dir, plugin_root=None):
+    def __init__(self, workspace_root, session_id, agents_dir, plugin_root=None, platform="claude"):
         self.root = Path(workspace_root).resolve()
         self.plugin_root = Path(plugin_root).resolve() if plugin_root else Path(__file__).resolve().parents[1]
         self.session_id = self._validate_session_id(session_id)
+        self.platform = platform
         self.agents_dir = self._resolve_plugin_path(agents_dir, self.plugin_root / "agents")
         self.template_path = self.agents_dir / "developer.md"
         self.module_split_path = self.root / ".superlooper" / "manifests" / self.session_id / "module-split.json"
+        self.execution_manifest_path = self.root / ".superlooper" / "manifests" / self.session_id / "execution_manifest.json"
         self.runtime_agents_dir = self.root / ".superlooper" / "agents" / self.session_id
         self.registered_agents_dir = self.root / ".claude" / "agents" / "generated" / "superlooper" / self.session_id
 
     def run(self):
         template = self._read_template()
         modules = self._load_modules()
+        manifest = self._load_execution_manifest() if self.platform == "codex" else None
         generated_paths = []
         for module in modules:
             content = self._render_agent(template, module)
             module_id = module["id"]
             filename = f"module_{module_id}.md"
             runtime_path = self.runtime_agents_dir / filename
-            registered_path = self.registered_agents_dir / filename
             runtime_path.parent.mkdir(parents=True, exist_ok=True)
-            registered_path.parent.mkdir(parents=True, exist_ok=True)
             runtime_path.write_text(content, encoding="utf-8")
-            registered_path.write_text(content, encoding="utf-8")
             generated_paths.append(self._contract_path(runtime_path))
-            generated_paths.append(self._contract_path(registered_path))
+            if self.platform == "claude":
+                registered_path = self.registered_agents_dir / filename
+                registered_path.parent.mkdir(parents=True, exist_ok=True)
+                registered_path.write_text(content, encoding="utf-8")
+                generated_paths.append(self._contract_path(registered_path))
+        if manifest is not None:
+            generated_paths.append(self._write_codex_dispatch(manifest))
         for path in generated_paths:
             print(path)
         return 0
@@ -128,6 +134,30 @@ class RuntimeAgentGenerator:
                 raise RuntimeAgentGenerationError(f"{label}.description 必须是非空字符串。")
             result.append(module)
         return result
+
+    def _load_execution_manifest(self):
+        if not self.execution_manifest_path.exists():
+            raise RuntimeAgentGenerationError(f"execution_manifest 文件不存在：{self.execution_manifest_path}")
+        try:
+            manifest = json.loads(self.execution_manifest_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise RuntimeAgentGenerationError(f"execution_manifest 解析失败：{exc}") from exc
+        if not isinstance(manifest, dict):
+            raise RuntimeAgentGenerationError("execution_manifest 顶层必须是 object。")
+        if manifest.get("session_id") != self.session_id:
+            raise RuntimeAgentGenerationError("execution_manifest.session_id 必须与当前 session_id 一致。")
+        nodes = manifest.get("dag", {}).get("nodes") if isinstance(manifest.get("dag"), dict) else None
+        if not isinstance(nodes, list) or not nodes:
+            raise RuntimeAgentGenerationError("execution_manifest.dag.nodes 必须是非空数组。")
+        return manifest
+
+    def _write_codex_dispatch(self, manifest):
+        dispatch_path = self.runtime_agents_dir / "codex-dispatch.json"
+        dispatch_path.write_text(
+            json.dumps({"platform": "codex", "nodes": manifest["dag"]["nodes"]}, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        return self._contract_path(dispatch_path)
 
     def _render_agent(self, template, module):
         module_id = module["id"]
@@ -254,6 +284,7 @@ def parse_args():
     parser.add_argument("--session-id", required=True, help="执行会话 ID。")
     parser.add_argument("--agents-dir", required=True, help="插件静态 agent 目录，例如 agents。相对路径按插件根目录解析。")
     parser.add_argument("--plugin-root", default=os.getenv("SUPERLOOPER_PLUGIN_ROOT"), help="插件源码或安装根目录，默认使用当前脚本所在插件根。")
+    parser.add_argument("--platform", choices=("claude", "codex"), default="claude", help="平台注册目标，默认 claude。")
     return parser.parse_args()
 
 
@@ -265,6 +296,7 @@ def main():
             session_id=args.session_id,
             agents_dir=args.agents_dir,
             plugin_root=args.plugin_root,
+            platform=args.platform,
         )
         return generator.run()
     except RuntimeAgentGenerationError as exc:

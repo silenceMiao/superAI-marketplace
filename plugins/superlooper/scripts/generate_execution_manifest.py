@@ -55,9 +55,10 @@ class ManifestGenerationError(Exception):
 
 
 class ExecutionManifestGenerator:
-    def __init__(self, workspace_root, session_id, module_split=None, output=None):
+    def __init__(self, workspace_root, session_id, module_split=None, output=None, platform="claude"):
         self.root = Path(workspace_root).resolve()
         self.session_id = self._validate_session_id(session_id)
+        self.platform = platform
         self.module_split_path = self._resolve_scoped_path(
             module_split,
             self.root / ".superlooper" / "manifests" / self.session_id / "module-split.json",
@@ -186,20 +187,31 @@ class ExecutionManifestGenerator:
         module_node_ids = [node["id"] for node in nodes]
         system_nodes = self._build_system_nodes(module_node_ids)
         nodes.extend(system_nodes)
-        return {
-            "session_id": self.session_id,
-            "granularity": "module",
-            "context": {
-                "prd_path": f".superlooper/context/{self.session_id}/prd.md",
-                "design_docs_path": f".superlooper/context/{self.session_id}/design/",
-                "module_split_path": f".superlooper/manifests/{self.session_id}/module-split.json",
-                "agents_path": "agents/",
-                "runtime_agents_path": f".superlooper/agents/{self.session_id}/",
-                "registered_agents_path": f".claude/agents/generated/superlooper/{self.session_id}/",
+        context = {
+            "prd_path": f".superlooper/context/{self.session_id}/prd.md",
+            "design_docs_path": f".superlooper/context/{self.session_id}/design/",
+            "module_split_path": f".superlooper/manifests/{self.session_id}/module-split.json",
+            "agents_path": "agents/",
+            "runtime_agents_path": f".superlooper/agents/{self.session_id}/",
+        }
+        if self.platform == "claude":
+            context["registered_agents_path"] = f".claude/agents/generated/superlooper/{self.session_id}/"
+        else:
+            context["platform_registration"] = {
+                "platform": "codex",
+                "dispatcher_path": f".superlooper/agents/{self.session_id}/codex-dispatch.json",
+            }
+        context.update(
+            {
                 "outputs_path": f".superlooper/outputs/{self.session_id}/",
                 "merged_path": f".superlooper/merged/{self.session_id}/",
                 "reports_path": f".superlooper/reports/{self.session_id}/",
-            },
+            }
+        )
+        return {
+            "session_id": self.session_id,
+            "granularity": "module",
+            "context": context,
             "dag": {"nodes": nodes},
         }
 
@@ -314,6 +326,7 @@ def parse_args():
         default=os.getenv("SUPERLOOPER_MANIFEST_PATH"),
         help="execution_manifest.json 输出路径，默认 <workspace-root>/.superlooper/manifests/<session_id>/execution_manifest.json。",
     )
+    parser.add_argument("--platform", choices=("claude", "codex"), default="claude", help="平台注册目标，默认 claude。")
     return parser.parse_args()
 
 
@@ -325,6 +338,7 @@ def main():
             session_id=args.session_id,
             module_split=args.module_split,
             output=args.output,
+            platform=args.platform,
         )
         return generator.run()
     except ManifestGenerationError as exc:

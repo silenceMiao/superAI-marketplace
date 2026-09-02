@@ -26,6 +26,16 @@ BLOCKED_PATH_COMPONENTS = {".superlooper", ".claude", "__pycache__"}
 INSTALL_RUNTIME_REQUIRED_FILES = frozenset(
     {
         ".claude-plugin/plugin.json",
+        ".codex-plugin/plugin.json",
+        "codex/dispatcher/README.md",
+        "codex/skills/superlooper/SKILL.md",
+        "codex/skills/superlooper-prd/SKILL.md",
+        "codex/skills/superlooper-ui/SKILL.md",
+        "codex/skills/superlooper-design/SKILL.md",
+        "codex/skills/superlooper-run/SKILL.md",
+        "codex/skills/superlooper-status/SKILL.md",
+        "codex/skills/superlooper-resume/SKILL.md",
+        "codex/skills/superlooper-doctor/SKILL.md",
         "README.md",
         "LICENSE",
         "commands/spl.md",

@@ -1,17 +1,17 @@
 # Superlooper
 
-Superlooper 是一个面向 Claude Code 的 AI 并行编排插件源码，用于把原始需求文档转换为 PRD、UI 设计与 HTML 预览、系统设计、项目结构初始化、模块拆分清单和执行 Manifest，并调度多个 agent 完成并行开发、审查、合并、测试、应用、受控变更回退和 PRD 反向校对闭环。
+Superlooper 是一个同时面向 Claude Code 与 Codex 的 AI 并行编排插件源码，用于把原始需求文档转换为 PRD、UI 设计与 HTML 预览、系统设计、项目结构初始化、模块拆分清单和执行 Manifest，并调度多个 agent 完成并行开发、审查、合并、测试、应用、受控变更回退和 PRD 反向校对闭环。
 
 - 插件名称：`superlooper`
 - 作者：`zh-miao`
 - 组织：`DQ-wings`
-- 许可证：`Apache-2.0`
-- 版本事实源：`.claude-plugin/plugin.json`；版本说明：`CHANGELOG.md`
-- 当前状态：标准 Claude Code plugin 源码结构，已通过 `claude plugin validate . --strict`
+- 许可证：`MIT`
+- 版本事实源：`.claude-plugin/plugin.json` 与 `.codex-plugin/plugin.json`；版本说明：`CHANGELOG.md`
+- 当前状态：双平台插件源码结构；Claude Code manifest 已通过 `claude plugin validate . --strict`
 
 ## 项目概述
 
-本项目不是业务应用，而是可复用的 Claude Code 插件源码。它的核心能力是把工程需求转化为可执行的多 agent 开发流程，并通过 `.superlooper/` 运行目录保存上下文、Manifest、模块产物、合并产物和报告。
+本项目不是业务应用，而是可复用的 Claude Code 与 Codex 双平台插件源码。它的核心能力是把工程需求转化为可执行的多 agent 开发流程，并通过 `.superlooper/` 运行目录保存上下文、Manifest、模块产物、合并产物和报告。
 
 ### 核心能力
 
@@ -44,7 +44,7 @@ Superlooper 是一个面向 Claude Code 的 AI 并行编排插件源码，用于
 
 普通用户使用 `superlooper-<version>-install.zip` 安装 Superlooper。`superlooper-<version>-source.zip` 用于源码分发、审计和开发验证，不作为普通用户安装入口。
 
-也可安装独立 marketplace 仓库：先在插件源码根目录执行 `python scripts/package_marketplace.py --target ../superAI-marketplace`，再将生成的 `../superAI-marketplace` 作为独立 GitHub repository 发布。target 必须位于插件源码目录外且尚不存在。该仓库的 `.claude-plugin/marketplace.json` 顶层 `owner.name` 与 `description` 来自插件 manifest，插件 entry 只包含基础字段并引用相对路径 `./plugins/superlooper`。使用真实 Claude Code marketplace 安装时，依次执行：
+也可安装独立 marketplace 仓库：先在插件源码根目录执行 `python scripts/package_marketplace.py --target ../superAI-marketplace`，再将生成的 `../superAI-marketplace` 作为独立 GitHub repository 发布。target 必须位于插件源码目录外且尚不存在。生成树同时包含 Claude Code 的 `.claude-plugin/marketplace.json` 与 Codex 的 `.agents/plugins/marketplace.json`；两个 entry 都引用同一个相对路径 `./plugins/superlooper`。使用真实 Claude Code marketplace 安装时，依次执行：
 
 ```text
 /plugin marketplace add <owner>/superAI-marketplace
@@ -60,6 +60,26 @@ Superlooper 是一个面向 Claude Code 的 AI 并行编排插件源码，用于
 ```
 
 `/superlooper:spl:doctor` 输出插件结构、脚本、schema、发布过滤自检结果。自检失败时，先修复插件安装或产物完整性，不启动业务流程。
+
+### Codex 快速开始
+
+在 Codex 中使用同一个已发布 Marketplace 时，依次执行：
+
+```text
+codex plugin marketplace add <owner>/superAI-marketplace --ref main
+codex plugin add superlooper@superAI-marketplace
+```
+
+在目标项目根目录显式调用 Codex skills：
+
+```text
+$superlooper-doctor
+$superlooper requirements.md [session_id]
+```
+
+在 Windows 的 non-ephemeral、`read-only` Codex parent session 中，`$superlooper-doctor` 需要该 shell 能执行共享脚本所需的 Python runtime。宿主 shell 能执行 Python 不足以证明该前置条件已满足：必须在将运行 doctor 的同一个 `read-only` Codex session 中先成功执行 `python --version`。Codex skill 从已加载 skill 文件所在目录的 `../../..` 推导安装态 `plugin_root`，并从 `<plugin_root>/scripts/doctor.py --workspace-root . --platform codex` 校验 Codex 结构；不得把 `scripts/doctor.py` 解释为目标工作区相对路径，也不依赖 `claude` CLI。若 Python runtime 不可用，不要通过 `danger-full-access`、全磁盘读取或全量环境变量继承绕过，也不要通过重启系统尝试修复；先按组织的 sandbox 策略满足运行环境前置条件，再运行 doctor。
+
+Codex 的 `$` 是 skill 显式触发标记，不是 Claude Code slash command。升级使用 `codex plugin marketplace upgrade superAI-marketplace`；卸载依次使用 `codex plugin remove superlooper@superAI-marketplace` 和 `codex plugin marketplace remove superAI-marketplace`。完整的 Codex 安装、调用、更新和卸载说明见 [docs/CODEX.md](docs/CODEX.md)。
 
 ### 准备需求文档
 
@@ -148,12 +168,30 @@ requirements.md
 
 不提供 `/superlooper:spl:manifest`。执行清单生成归入 `/superlooper:spl:run`。
 
+## 双平台入口与等价边界
+
+| 语义入口 | Claude Code | Codex |
+| --- | --- | --- |
+| 总入口 | `/superlooper:spl <requirement_path> [session_id]` | `$superlooper <requirement_path> [session_id]` |
+| PRD | `/superlooper:spl:prd <requirement_path> [session_id]` | `$superlooper-prd <requirement_path> [session_id]` |
+| UI | `/superlooper:spl:ui <session_id>` | `$superlooper-ui <session_id>` |
+| 设计 | `/superlooper:spl:design <session_id>` | `$superlooper-design <session_id>` |
+| 执行 | `/superlooper:spl:run <session_id>` | `$superlooper-run <session_id>` |
+| 状态 | `/superlooper:spl:status <session_id>` | `$superlooper-status <session_id>` |
+| 恢复 | `/superlooper:spl:resume <session_id>` | `$superlooper-resume <session_id>` |
+| 自检 | `/superlooper:spl:doctor [session_id]` | `$superlooper-doctor [session_id]` |
+
+Superlooper 在 Claude Code 与 Codex 中保持等价的七流程、`.superlooper/` 状态、Manifest、报告和质量门禁；终端 UI、入口字符、模型措辞、token 消耗和并发时序不属于跨平台一致性承诺。
+
 ## 技术引用
 
 | 类型 | 文件/目录 | 作用 |
 | --- | --- | --- |
-| 插件清单 | `.claude-plugin/plugin.json` | 定义插件名称、作者、许可证和插件组件路径 |
-| 运行入口 | `skills` 目录下的 `superlooper/SKILL.md` | 承载 Superlooper 主调度协议 |
+| Claude Code 插件清单 | `.claude-plugin/plugin.json` | 定义 Claude Code 插件名称、作者、许可证和组件路径 |
+| Codex 插件清单 | `.codex-plugin/plugin.json` | 定义 Codex Agent Plugin 名称、版本、许可证和 Codex skills 路径 |
+| Claude Code 运行入口 | `skills` 目录下的 `superlooper/SKILL.md` | 承载 Claude Code 主调度协议 |
+| Codex 运行入口 | `codex/skills/*/SKILL.md` | 提供八个 `$superlooper...` skill 入口并复用共享 session 契约 |
+| Codex dispatcher | `codex/dispatcher/README.md` | 声明从共享 Manifest 到 Codex 原生 `spawn_agent` 的调度边界 |
 | 开发入口 | `skills` 目录下的 `superlooper-dev/SKILL.md` | 固化插件源码开发前必读上下文，减少每轮手动输入 |
 | 静态 agent | `agents/*.md` | 定义需求、设计、影响分析、开发、审查、合并、测试、应用和 PRD 反向校对角色 |
 | Slash commands | `commands/` | 提供 `/superlooper:spl`、`/superlooper:spl:prd`、`/superlooper:spl:ui`、`/superlooper:spl:design`、`/superlooper:spl:run`、`/superlooper:spl:status`、`/superlooper:spl:resume`、`/superlooper:spl:doctor` 用户入口；不提供 `/superlooper:spl:manifest` |
@@ -184,6 +222,8 @@ requirements.md
 superlooper/
 ├── .claude-plugin/
 │   └── plugin.json                 # Claude Code plugin manifest
+├── .codex-plugin/
+│   └── plugin.json                 # Codex Agent Plugin manifest
 ├── agents/                         # 插件静态 subagent 定义
 │   ├── analyst.md
 │   ├── architect.md
@@ -200,6 +240,18 @@ superlooper/
 │   │   └── SKILL.md                # 插件运行时主调度协议
 │   └── superlooper-dev/
 │       └── SKILL.md                # 插件源码开发入口
+├── codex/                          # Codex skills 与 native dispatcher 适配层
+│   ├── skills/
+│   │   ├── superlooper/
+│   │   ├── superlooper-prd/
+│   │   ├── superlooper-ui/
+│   │   ├── superlooper-design/
+│   │   ├── superlooper-run/
+│   │   ├── superlooper-status/
+│   │   ├── superlooper-resume/
+│   │   └── superlooper-doctor/
+│   └── dispatcher/
+│       └── README.md               # Codex native dispatch contract
 ├── commands/                       # /superlooper:spl 命令入口
 │   ├── spl.md
 │   └── spl/
@@ -395,10 +447,10 @@ Superlooper 实体化命令统一使用 `/superlooper:spl` 前缀。普通自然
 - 插件运行协议必须位于 `skills` 目录下的 `superlooper/SKILL.md`，不得依赖 plugin root 的 `CLAUDE.md`。
 - `agents/developer.md` 是动态 `module_*` 编码子代理模板，不作为实际编码 agent 直接执行。
 - 动态 `module_*` agent 的运行时源文件必须位于 `.superlooper/agents/<session_id>/<agent>.md`。
-- 动态 `module_*` agent 的 Claude Code 注册入口必须位于 `.claude/agents/generated/superlooper/<session_id>/<agent>.md`。
-- 动态 `module_*` agent 的运行时源文件与 Claude Code 注册入口内容必须完全一致。
+- Claude Code 平台的动态 `module_*` agent 注册入口位于 `.claude/agents/generated/superlooper/<session_id>/<agent>.md`；运行时源文件与该注册入口内容必须完全一致。
+- Codex 平台不写入 Claude 注册目录；其 Manifest `context.platform_registration` 指向 `.superlooper/agents/<session_id>/codex-dispatch.json`，该 dispatcher 的节点必须与共享 Manifest DAG 完全一致。
 - 动态 `module_*` agent 的正文必须包含 `Runtime Module Constraints` 约束块，字段固定为 `session_id`、`module_id`、`target_files`、`file_roles`、`requirement_refs`、`decision_refs`、`open_question_refs`、`acceptance_refs`、`ui_refs`、`interaction_refs`、`component_refs`、`ui_acceptance_refs`、`allowed_existing_files`、`forbidden_files`、`integration_points`、`test_commands`、`overwrite_policy`、`test_focus`、`forbidden_inputs`、`forbidden_outputs`。
-- Manifest 中 `agent` 字段必须能在静态 agent 目录或动态注册入口中找到对应 `<agent>.md`。
+- Manifest 中 `agent` 字段必须能在静态 agent 目录或当前平台的动态运行时注册物中找到对应 `<agent>.md`。
 - `module-split.json` 的模块项可使用 `requirement_refs`、`decision_refs`、`open_question_refs`、`acceptance_refs`、`ui_refs`、`interaction_refs`、`component_refs`、`ui_acceptance_refs`、`allowed_existing_files`、`forbidden_files`、`integration_points`、`test_commands`、`overwrite_policy`、`test_focus`、`depends_on_modules` 承载设计阶段追溯、存量项目边界与测试关注点。
 - validator 会从 `module-split.json.modules[].ui_acceptance_refs` 收集 UI 验收编号，并对 `test_report.md` 与 `requirement_alignment_report.md` 正文执行轻量证据行审计；该审计只检查编号与证据关键词，不替代人工 UI 审核或完整 Markdown AST 校验。
 - `module_*` 节点只读取自己的 `payload`、设计上下文、`module-split.json` 中自己的模块对象、执行清单节点，以及 Manifest 下发到本模块的 `DEC-*` / `OPEN-*` 编号和默认处理方式，不读取原始需求文档、其他模块 payload 或其他模块输出目录。
@@ -499,7 +551,7 @@ skills/superlooper/SKILL.md
 
 `.claude/CLAUDE.md` 只用于本机开发，已通过 `.gitignore` 排除，不属于插件发布源码。插件安装后的用户入口统一以 `/superlooper:spl` 系列命令为准。
 
-发布脚本支持两种实体化模式：`source` 用于源码分发，保留 `tests/` 和 `docs/design/`；`install` 用于安装分发，排除 `tests/` 和 `docs/design/`。两种模式都会排除 `.superlooper/`、`.claude/`、`.learnings/`、`docs/superpowers/`、`dist/`、`__pycache__/`、`.env`、`.env.*`，并始终保留 `.claude-plugin/plugin.json`、`/superlooper:spl` 命令、UI agent、impact analyzer、UI flow、执行摘要脚本、自然语言归一化脚本、doctor 脚本和 `bin/spl` doctor 路由。发布清单会执行 secret scan；`build_release_archive.py` 捕获发布打包错误并输出单行失败原因，且 zip 内部路径必须与 release manifest 完全一致。
+发布脚本支持两种实体化模式：`source` 用于源码分发，保留 `tests/` 和 `docs/design/`；`install` 用于安装分发，排除 `tests/` 和 `docs/design/`。两种模式都会排除 `.superlooper/`、`.claude/`、`.learnings/`、`docs/superpowers/`、`dist/`、`__pycache__/`、`.env`、`.env.*`，并始终保留 `.claude-plugin/plugin.json`、`.codex-plugin/plugin.json`、`/superlooper:spl` 命令、八个 `$superlooper...` Codex skills、Codex dispatcher、UI agent、impact analyzer、UI flow、执行摘要脚本、自然语言归一化脚本、doctor 脚本和 `bin/spl` doctor 路由。发布清单会执行 secret scan；`build_release_archive.py` 捕获发布打包错误并输出单行失败原因，且 zip 内部路径必须与 release manifest 完全一致。
 
 `build_session_report.py`、`merge_artifacts.py`、`apply_to_workspace.py` 新增 `--redact-paths`，用于把报告中的 `workspace_root` 脱敏为 `.`，并尽量把工作区内绝对路径写成相对路径；默认行为保持不变。
 
