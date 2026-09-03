@@ -77,9 +77,9 @@ $superlooper-doctor
 $superlooper requirements.md [session_id]
 ```
 
-在 Windows 的 non-ephemeral、`read-only` Codex parent session 中，`$superlooper-doctor` 需要该 shell 能执行共享脚本所需的 Python runtime。宿主 shell 能执行 Python 不足以证明该前置条件已满足：必须在将运行 doctor 的同一个 `read-only` Codex session 中先成功执行 `python --version`。Codex skill 从已加载 skill 文件所在目录的 `../../..` 推导安装态 `plugin_root`，并从 `<plugin_root>/scripts/doctor.py --workspace-root . --platform codex` 校验 Codex 结构；不得把 `scripts/doctor.py` 解释为目标工作区相对路径，也不依赖 `claude` CLI。若 Python runtime 不可用，不要通过 `danger-full-access`、全磁盘读取或全量环境变量继承绕过，也不要通过重启系统尝试修复；先按组织的 sandbox 策略满足运行环境前置条件，再运行 doctor。
+完整 Codex workflow 使用 non-ephemeral、`workspace-write` Codex parent session，以便写入目标项目的 `.superlooper/` 运行时产物。`$superlooper-doctor` 需要当前 Codex parent session 能执行共享脚本所需的 Python runtime。宿主 shell 能执行 Python 不足以证明该前置条件已满足：必须在将运行 doctor 的同一个当前 Codex parent session 中先成功执行 `python --version`。Codex skill 从已加载 skill 文件所在目录的 `../../..` 推导安装态 `plugin_root`，并从 `<plugin_root>/scripts/doctor.py --workspace-root . --platform codex` 校验 Codex 结构；不得把 `scripts/doctor.py` 解释为目标工作区相对路径，也不依赖 `claude` CLI。若 Python runtime 不可用，不要通过 `danger-full-access`、全磁盘读取或全量环境变量继承绕过，也不要通过重启系统尝试修复；先满足当前 Codex parent session 的运行环境前置条件，再运行 doctor。
 
-Codex 的 `$` 是 skill 显式触发标记，不是 Claude Code slash command。升级使用 `codex plugin marketplace upgrade superAI-marketplace`；卸载依次使用 `codex plugin remove superlooper@superAI-marketplace` 和 `codex plugin marketplace remove superAI-marketplace`。完整的 Codex 安装、调用、更新和卸载说明见 [docs/CODEX.md](docs/CODEX.md)。
+Codex 的 `$` 是 skill 显式触发标记，不是 Claude Code slash command。升级使用 `codex plugin marketplace upgrade superAI-marketplace`；卸载依次使用 `codex plugin remove superlooper@superAI-marketplace` 和 `codex plugin marketplace remove superAI-marketplace`。本节包含 install artifact 所需的 Codex 安装、调用、更新和卸载说明。
 
 ### 准备需求文档
 
@@ -201,9 +201,9 @@ Superlooper 在 Claude Code 与 Codex 中保持等价的七流程、`.superloope
 | 输出样式目录 | `output-styles/` | 预留 Claude Code 输出样式，当前仅保留骨架 |
 | 主题目录 | `themes/` | 预留插件主题，当前仅保留骨架 |
 | 监控目录 | `monitors/` | 预留 monitors 配置，当前仅保留骨架 |
-| 契约 schema | `schemas/*.schema.json` | 描述模块拆分、执行 Manifest、产物 Manifest 的 JSON 结构 |
+| 契约 schema | `schemas/*.schema.json` | 描述模块拆分、执行 Manifest、产物 Manifest、交互 flow 与 session state 的 JSON 结构 |
 | 项目初始化 | `scripts/initialize_project_structure.py` | 在上游自校对通过后、正式模块拆分和编码前初始化最小项目结构 |
-| 契约校验 | `scripts/validate_miao_contracts.py` | 校验 Manifest、DAG、agent 文件、模块产物声明、初始化报告、执行摘要、上游自校对报告、变更影响分析报告和需求反向校对报告 |
+| 契约校验 | `scripts/validate_miao_contracts.py` | 先通过 `scripts/schema_validation.py` 强制执行 Schema 结构约束，再校验 Manifest、DAG、agent 文件、模块产物声明、初始化报告、执行摘要、上游自校对报告、变更影响分析报告和需求反向校对报告 |
 | DAG state runner | `scripts/run_execution_dag.py` | 只负责 DAG 结构核验、拓扑顺序和 `.dag.json` 状态记录；不调度真实 subagent，不替代 `/superlooper:spl:run` 主协议中的 code review、merge、test、apply 和需求反向校对门禁 |
 | 执行摘要 | `scripts/build_execution_summary.py` | 汇总初始化、module-split、execution_manifest 和真实 `upstream_alignment.md` 自校对结果，生成默认执行前人工握手报告 |
 | 产物合并 | `scripts/merge_artifacts.py` | 将模块产物合并到 `.superlooper/merged/<session_id>/` |
@@ -289,6 +289,7 @@ superlooper/
 │   ├── normalize_user_intent.py
 │   ├── package_plugin.py
 │   ├── run_execution_dag.py
+│   ├── schema_validation.py
 │   ├── resume_session.py
 │   ├── status_session.py
 │   ├── update_session.py
@@ -381,6 +382,7 @@ superlooper/
 | --- | --- | --- |
 | 校验插件结构 | `claude plugin validate . --strict` | 严格校验当前目录是否符合 Claude Code plugin 结构 |
 | 校验合并脚本语法 | `python -m py_compile scripts/merge_artifacts.py` | 确认合并脚本没有 Python 语法错误 |
+| 校验 Schema 执行器语法 | `python -m py_compile scripts/schema_validation.py` | 确认共享 Schema 执行器没有 Python 语法错误 |
 | 校验契约脚本语法 | `python -m py_compile scripts/validate_miao_contracts.py` | 确认契约校验脚本没有 Python 语法错误 |
 | 校验声明式交互 flow | `python scripts/validate_miao_contracts.py --workspace-root . --session-id session_dummy --scope interaction-flow` | 校验 `configs/interaction-flow.json`、公开命令文件映射、阶段入口、初始化选项、canonical action、别名映射和推荐握手回复覆盖 |
 | 校验 UI 产物契约 | `python scripts/validate_miao_contracts.py --workspace-root <project-root> --session-id <session_id> --scope ui-artifacts` | 校验 UI 固定产物、`ui-spec.md` 状态块、`preview.html` 自包含约束和 `ui-handoff.md` architect 消费契约 |
@@ -448,7 +450,7 @@ Superlooper 实体化命令统一使用 `/superlooper:spl` 前缀。普通自然
 - `agents/developer.md` 是动态 `module_*` 编码子代理模板，不作为实际编码 agent 直接执行。
 - 动态 `module_*` agent 的运行时源文件必须位于 `.superlooper/agents/<session_id>/<agent>.md`。
 - Claude Code 平台的动态 `module_*` agent 注册入口位于 `.claude/agents/generated/superlooper/<session_id>/<agent>.md`；运行时源文件与该注册入口内容必须完全一致。
-- Codex 平台不写入 Claude 注册目录；其 Manifest `context.platform_registration` 指向 `.superlooper/agents/<session_id>/codex-dispatch.json`，该 dispatcher 的节点必须与共享 Manifest DAG 完全一致。
+- Codex 平台不写入 Claude 注册目录；其 Manifest `context.platform_registration` 固定为 `{ "platform": "codex" }`，并只生成 `.superlooper/agents/<session_id>/module_<module_id>.md` 运行时 agent。共享 `execution_manifest.json` 是唯一 DAG 事实源。
 - 动态 `module_*` agent 的正文必须包含 `Runtime Module Constraints` 约束块，字段固定为 `session_id`、`module_id`、`target_files`、`file_roles`、`requirement_refs`、`decision_refs`、`open_question_refs`、`acceptance_refs`、`ui_refs`、`interaction_refs`、`component_refs`、`ui_acceptance_refs`、`allowed_existing_files`、`forbidden_files`、`integration_points`、`test_commands`、`overwrite_policy`、`test_focus`、`forbidden_inputs`、`forbidden_outputs`。
 - Manifest 中 `agent` 字段必须能在静态 agent 目录或当前平台的动态运行时注册物中找到对应 `<agent>.md`。
 - `module-split.json` 的模块项可使用 `requirement_refs`、`decision_refs`、`open_question_refs`、`acceptance_refs`、`ui_refs`、`interaction_refs`、`component_refs`、`ui_acceptance_refs`、`allowed_existing_files`、`forbidden_files`、`integration_points`、`test_commands`、`overwrite_policy`、`test_focus`、`depends_on_modules` 承载设计阶段追溯、存量项目边界与测试关注点。
@@ -573,7 +575,7 @@ skills/superlooper/SKILL.md
 
 ```bash
 claude plugin validate . --strict
-python -m py_compile scripts/validate_miao_contracts.py scripts/merge_artifacts.py scripts/apply_to_workspace.py scripts/initialize_project_structure.py scripts/generate_execution_manifest.py scripts/generate_runtime_agents.py scripts/build_execution_summary.py scripts/build_session_report.py scripts/doctor.py scripts/create_session.py scripts/update_session.py scripts/resume_session.py scripts/status_session.py scripts/normalize_user_intent.py scripts/package_plugin.py scripts/build_release_archive.py scripts/run_execution_dag.py
+python -m py_compile scripts/schema_validation.py scripts/validate_miao_contracts.py scripts/merge_artifacts.py scripts/apply_to_workspace.py scripts/initialize_project_structure.py scripts/generate_execution_manifest.py scripts/generate_runtime_agents.py scripts/build_execution_summary.py scripts/build_session_report.py scripts/doctor.py scripts/create_session.py scripts/update_session.py scripts/resume_session.py scripts/status_session.py scripts/normalize_user_intent.py scripts/package_plugin.py scripts/build_release_archive.py scripts/run_execution_dag.py
 ```
 
 验收通过后，插件源码结构、运行协议入口、静态 agent 目录、脚本和 schema 契约保持一致。

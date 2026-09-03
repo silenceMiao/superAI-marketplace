@@ -50,14 +50,12 @@ class RuntimeAgentGenerator:
         self.agents_dir = self._resolve_plugin_path(agents_dir, self.plugin_root / "agents")
         self.template_path = self.agents_dir / "developer.md"
         self.module_split_path = self.root / ".superlooper" / "manifests" / self.session_id / "module-split.json"
-        self.execution_manifest_path = self.root / ".superlooper" / "manifests" / self.session_id / "execution_manifest.json"
         self.runtime_agents_dir = self.root / ".superlooper" / "agents" / self.session_id
         self.registered_agents_dir = self.root / ".claude" / "agents" / "generated" / "superlooper" / self.session_id
 
     def run(self):
         template = self._read_template()
         modules = self._load_modules()
-        manifest = self._load_execution_manifest() if self.platform == "codex" else None
         generated_paths = []
         for module in modules:
             content = self._render_agent(template, module)
@@ -72,8 +70,6 @@ class RuntimeAgentGenerator:
                 registered_path.parent.mkdir(parents=True, exist_ok=True)
                 registered_path.write_text(content, encoding="utf-8")
                 generated_paths.append(self._contract_path(registered_path))
-        if manifest is not None:
-            generated_paths.append(self._write_codex_dispatch(manifest))
         for path in generated_paths:
             print(path)
         return 0
@@ -134,30 +130,6 @@ class RuntimeAgentGenerator:
                 raise RuntimeAgentGenerationError(f"{label}.description 必须是非空字符串。")
             result.append(module)
         return result
-
-    def _load_execution_manifest(self):
-        if not self.execution_manifest_path.exists():
-            raise RuntimeAgentGenerationError(f"execution_manifest 文件不存在：{self.execution_manifest_path}")
-        try:
-            manifest = json.loads(self.execution_manifest_path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError as exc:
-            raise RuntimeAgentGenerationError(f"execution_manifest 解析失败：{exc}") from exc
-        if not isinstance(manifest, dict):
-            raise RuntimeAgentGenerationError("execution_manifest 顶层必须是 object。")
-        if manifest.get("session_id") != self.session_id:
-            raise RuntimeAgentGenerationError("execution_manifest.session_id 必须与当前 session_id 一致。")
-        nodes = manifest.get("dag", {}).get("nodes") if isinstance(manifest.get("dag"), dict) else None
-        if not isinstance(nodes, list) or not nodes:
-            raise RuntimeAgentGenerationError("execution_manifest.dag.nodes 必须是非空数组。")
-        return manifest
-
-    def _write_codex_dispatch(self, manifest):
-        dispatch_path = self.runtime_agents_dir / "codex-dispatch.json"
-        dispatch_path.write_text(
-            json.dumps({"platform": "codex", "nodes": manifest["dag"]["nodes"]}, ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
-        )
-        return self._contract_path(dispatch_path)
 
     def _render_agent(self, template, module):
         module_id = module["id"]

@@ -39,17 +39,24 @@ REQUIRED_AGENT_FILES = [
     "agents/requirement-verifier.md",
     "agents/impact-analyzer.md",
 ]
-CODEX_SKILL_FILES = [
-    "codex/skills/superlooper/SKILL.md",
-    "codex/skills/superlooper-prd/SKILL.md",
-    "codex/skills/superlooper-ui/SKILL.md",
-    "codex/skills/superlooper-design/SKILL.md",
-    "codex/skills/superlooper-run/SKILL.md",
-    "codex/skills/superlooper-status/SKILL.md",
-    "codex/skills/superlooper-resume/SKILL.md",
-    "codex/skills/superlooper-doctor/SKILL.md",
+CODEX_SKILL_NAMES = {
+    "superlooper",
+    "superlooper-prd",
+    "superlooper-ui",
+    "superlooper-design",
+    "superlooper-run",
+    "superlooper-status",
+    "superlooper-resume",
+    "superlooper-doctor",
+}
+CODEX_SKILLS_PATH = "./codex/skills/"
+CODEX_DISPATCHER_REQUIRED_TEXT = [
+    "execution_manifest.json",
+    "sole source",
+    "spawn_agent",
+    "non-ephemeral",
+    "second DAG representation",
 ]
-CODEX_DISPATCHER_DAG = "mod_* -> task_code_review -> task_merge -> task_integration_test -> task_apply_to_workspace"
 
 
 REQUIRED_RELEASE_EXCLUDE = [
@@ -115,14 +122,8 @@ class DoctorRunner:
         scripts = sorted(path for path in (self.plugin_root / "scripts").glob("*.py") if path.is_file())
         if not scripts:
             return "FAIL", "scripts 目录下没有可编译的 Python 文件"
-        if self.platform == "codex":
-            for path in scripts:
-                compile(path.read_text(encoding="utf-8"), str(path), "exec")
-            return "PASS", f"compiled {len(scripts)} scripts"
-        command = [sys.executable, "-m", "py_compile", *[str(path) for path in scripts]]
-        completed = self._run_command(command)
-        if completed.returncode != 0:
-            return "FAIL", completed.stderr or completed.stdout or "py_compile failed"
+        for path in scripts:
+            compile(path.read_text(encoding="utf-8"), str(path), "exec")
         return "PASS", f"compiled {len(scripts)} scripts"
 
     def check_commands_contract(self):
@@ -135,7 +136,15 @@ class DoctorRunner:
         missing = [relative for relative in REQUIRED_SCHEMA_FILES if not (self.plugin_root / relative).exists()]
         if missing:
             return "FAIL", "missing: " + ", ".join(missing)
-        return "PASS", f"found {len(REQUIRED_SCHEMA_FILES)} schema files"
+        for relative in REQUIRED_SCHEMA_FILES:
+            path = self.plugin_root / relative
+            try:
+                schema = json.loads(path.read_text(encoding="utf-8"))
+            except json.JSONDecodeError as exc:
+                return "FAIL", f"invalid JSON: {relative}: {exc}"
+            if not isinstance(schema, dict):
+                return "FAIL", f"schema root must be object: {relative}"
+        return "PASS", f"parsed {len(REQUIRED_SCHEMA_FILES)} schema files"
 
     def check_agent_contract(self):
         missing = [relative for relative in REQUIRED_AGENT_FILES if not (self.plugin_root / relative).exists()]
@@ -154,39 +163,77 @@ class DoctorRunner:
         mismatched = [field for field in fields if codex_manifest.get(field) != claude_manifest.get(field)]
         if mismatched:
             return "FAIL", "mismatch with Claude manifest: " + ", ".join(mismatched)
-        return "PASS", "Codex name, version, and license match Claude manifest"
+        self._codex_skills_root(codex_manifest)
+        return "PASS", "Codex name, version, license, and skills path match the runtime contract"
 
     def check_codex_skills(self):
+        codex_manifest_path = self.plugin_root / ".codex-plugin" / "plugin.json"
+        if not codex_manifest_path.is_file():
+            return "FAIL", "missing: .codex-plugin/plugin.json"
+        codex_manifest = json.loads(codex_manifest_path.read_text(encoding="utf-8"))
+        skills_root = self._codex_skills_root(codex_manifest)
+        actual_names = {path.parent.name for path in skills_root.glob("*/SKILL.md")}
+        if actual_names != CODEX_SKILL_NAMES:
+            missing = sorted(CODEX_SKILL_NAMES - actual_names)
+            extra = sorted(actual_names - CODEX_SKILL_NAMES)
+            details = []
+            if missing:
+                details.append("missing: " + ", ".join(missing))
+            if extra:
+                details.append("unexpected: " + ", ".join(extra))
+            return "FAIL", "; ".join(details)
         invalid = []
-        for relative in CODEX_SKILL_FILES:
-            path = self.plugin_root / relative
-            if not path.is_file():
-                invalid.append(relative)
-                continue
-            lines = path.read_text(encoding="utf-8").splitlines()
-            if not lines or lines[0].strip() != "---":
-                invalid.append(relative)
-                continue
-            try:
-                frontmatter_end = next(index for index, line in enumerate(lines[1:], start=1) if line.strip() == "---")
-            except StopIteration:
-                invalid.append(relative)
-                continue
-            frontmatter = "\n".join(lines[1:frontmatter_end])
-            if "name:" not in frontmatter or "description:" not in frontmatter:
-                invalid.append(relative)
+        for skill_name in sorted(CODEX_SKILL_NAMES):
+            path = skills_root / skill_name / "SKILL.md"
+            frontmatter = self._read_frontmatter(path)
+            if frontmatter.get("name") != skill_name:
+                invalid.append(f"{skill_name}: name must equal directory")
+            description = frontmatter.get("description")
+            if not isinstance(description, str) or not description.strip():
+                invalid.append(f"{skill_name}: description must be non-empty")
         if invalid:
-            return "FAIL", "missing or invalid frontmatter: " + ", ".join(invalid)
-        return "PASS", f"found {len(CODEX_SKILL_FILES)} Codex skills"
+            return "FAIL", "; ".join(invalid)
+        return "PASS", f"validated {len(CODEX_SKILL_NAMES)} manifest-discovered Codex skills"
 
     def check_codex_dispatcher(self):
         relative = "codex/dispatcher/README.md"
         path = self.plugin_root / relative
         if not path.is_file():
             return "FAIL", f"missing: {relative}"
-        if CODEX_DISPATCHER_DAG not in path.read_text(encoding="utf-8"):
-            return "FAIL", "missing full Codex dispatcher DAG"
-        return "PASS", "Codex dispatcher declares the full DAG"
+        content = path.read_text(encoding="utf-8")
+        missing = [text for text in CODEX_DISPATCHER_REQUIRED_TEXT if text not in content]
+        if missing:
+            return "FAIL", "missing adapter boundary: " + ", ".join(missing)
+        return "PASS", "Codex dispatcher delegates the sole shared Manifest DAG"
+
+    def _codex_skills_root(self, codex_manifest):
+        relative = codex_manifest.get("skills")
+        if relative != CODEX_SKILLS_PATH:
+            raise DoctorError(f"Codex skills must be {CODEX_SKILLS_PATH}")
+        root = (self.plugin_root / relative).resolve()
+        try:
+            root.relative_to(self.plugin_root)
+        except ValueError as exc:
+            raise DoctorError("Codex skills path escapes plugin root") from exc
+        if not root.is_dir():
+            raise DoctorError(f"Codex skills directory missing: {relative}")
+        return root
+
+    def _read_frontmatter(self, path):
+        lines = path.read_text(encoding="utf-8").splitlines()
+        if not lines or lines[0].strip() != "---":
+            raise DoctorError(f"skill frontmatter missing: {path}")
+        try:
+            end = next(index for index, line in enumerate(lines[1:], start=1) if line.strip() == "---")
+        except StopIteration as exc:
+            raise DoctorError(f"skill frontmatter not closed: {path}") from exc
+        values = {}
+        for line in lines[1:end]:
+            if ":" not in line:
+                continue
+            key, value = line.split(":", 1)
+            values[key.strip()] = value.strip().strip("'\"")
+        return values
 
     def check_forbidden_manifest_command(self):
         path = self.plugin_root / FORBIDDEN_COMMAND_FILE

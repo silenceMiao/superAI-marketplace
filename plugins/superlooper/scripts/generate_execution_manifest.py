@@ -197,10 +197,7 @@ class ExecutionManifestGenerator:
         if self.platform == "claude":
             context["registered_agents_path"] = f".claude/agents/generated/superlooper/{self.session_id}/"
         else:
-            context["platform_registration"] = {
-                "platform": "codex",
-                "dispatcher_path": f".superlooper/agents/{self.session_id}/codex-dispatch.json",
-            }
+            context["platform_registration"] = {"platform": "codex"}
         context.update(
             {
                 "outputs_path": f".superlooper/outputs/{self.session_id}/",

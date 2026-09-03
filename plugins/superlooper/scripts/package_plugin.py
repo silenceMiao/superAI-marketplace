@@ -79,6 +79,7 @@ INSTALL_RUNTIME_REQUIRED_FILES = frozenset(
         "scripts/package_plugin.py",
         "scripts/resume_session.py",
         "scripts/run_execution_dag.py",
+        "scripts/schema_validation.py",
         "scripts/status_session.py",
         "scripts/update_session.py",
         "scripts/validate_miao_contracts.py",

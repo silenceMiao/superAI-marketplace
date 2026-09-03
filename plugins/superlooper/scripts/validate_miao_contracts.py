@@ -5,6 +5,8 @@ import re
 import sys
 from pathlib import Path
 
+from schema_validation import SchemaValidationError, SchemaValidator
+
 
 SESSION_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+$")
 PROTECTED_ROOTS = {".superlooper", ".git", ".svn", ".hg"}
@@ -287,6 +289,7 @@ class ContractValidator:
         if not isinstance(schema, dict):
             self.errors.append("interaction-flow schema 顶层必须是 object。")
             return flow
+        self._validate_schema_data(flow, schema, "interaction-flow")
         schema_required = schema.get("required")
         if not isinstance(schema_required, list):
             self.errors.append("interaction-flow schema.required 必须是数组。")
@@ -458,6 +461,7 @@ class ContractValidator:
         if not isinstance(data, dict):
             self.errors.append("module-split 顶层必须是 object。")
             return None
+        self._validate_schema(data, "module-split.schema.json", "module-split")
         self._require_string(data, "project_name", "module-split")
         project_profile = data.get("project_profile")
         if project_profile is not None:
@@ -585,6 +589,7 @@ class ContractValidator:
         if not isinstance(manifest, dict):
             self.errors.append("Execution Manifest 顶层必须是 object。")
             return None
+        self._validate_schema(manifest, "execution-manifest.schema.json", "Execution Manifest")
         if manifest.get("session_id") != self.session_id:
             self.errors.append("Execution Manifest session_id 必须与当前 session_id 一致。")
         if manifest.get("granularity") != "module":
@@ -636,8 +641,6 @@ class ContractValidator:
         self._validate_module_node_set(node_map)
         self._validate_dag_links(node_map)
         self._validate_system_chain(node_map)
-        if platform == "codex" and isinstance(context, dict):
-            self._validate_codex_dispatch(manifest, context)
         return manifest
 
     def validate_artifacts(self, required=False):
@@ -663,6 +666,7 @@ class ContractValidator:
         if not isinstance(artifact, dict):
             self.errors.append(f"{module_id} artifact_manifest 顶层必须是 object。")
             return
+        self._validate_schema(artifact, "artifact-manifest.schema.json", f"{module_id} artifact_manifest")
         if artifact.get("session_id") != self.session_id:
             self.errors.append(f"{module_id} artifact session_id 不一致。")
         if artifact.get("module_id") != module_id:
@@ -783,14 +787,8 @@ class ContractValidator:
             if not isinstance(registration, dict):
                 self.errors.append("Execution Manifest context.platform_registration 必须是 object。")
             else:
-                if registration.get("platform") != "codex":
-                    self.errors.append("Execution Manifest context.platform_registration.platform 必须为 codex。")
-                dispatcher_path = registration.get("dispatcher_path")
-                expected_dispatcher_path = f".superlooper/agents/{self.session_id}/codex-dispatch.json"
-                if not isinstance(dispatcher_path, str) or self._normalize_context_path(dispatcher_path) != self._normalize_context_path(expected_dispatcher_path):
-                    self.errors.append(f"Execution Manifest context.platform_registration.dispatcher_path 必须为 {expected_dispatcher_path}。")
-                elif not self._safe_relative_path(dispatcher_path, allow_protected=True):
-                    self.errors.append(f"Execution Manifest context.platform_registration.dispatcher_path 不是安全相对路径：{dispatcher_path}")
+                if registration != {"platform": "codex"}:
+                    self.errors.append("Execution Manifest context.platform_registration 必须为 {\"platform\": \"codex\"}。")
             if "registered_agents_path" in context:
                 self.errors.append("Codex Execution Manifest context 不得包含 registered_agents_path。")
         for field in fields:
@@ -959,27 +957,6 @@ class ContractValidator:
             return
         if runtime_content != registered_content:
             self.errors.append(f"动态 agent 运行时源文件与注册入口内容不一致：{agent}.md")
-
-    def _validate_codex_dispatch(self, manifest, context):
-        registration = context.get("platform_registration")
-        if not isinstance(registration, dict):
-            return
-        dispatcher_path = registration.get("dispatcher_path")
-        if not isinstance(dispatcher_path, str):
-            return
-        dispatch_path = self.root / dispatcher_path
-        if not dispatch_path.exists():
-            self.errors.append(f"Codex dispatcher 文件不存在：{dispatch_path}")
-            return
-        dispatch = self._read_json(dispatch_path)
-        if not isinstance(dispatch, dict):
-            self.errors.append("Codex dispatcher 顶层必须是 object。")
-            return
-        if dispatch.get("platform") != "codex":
-            self.errors.append("Codex dispatcher.platform 必须为 codex。")
-        expected_nodes = manifest.get("dag", {}).get("nodes")
-        if dispatch.get("nodes") != expected_nodes:
-            self.errors.append("Codex dispatcher.nodes 必须与 Execution Manifest DAG 节点完全一致。")
 
     def _validate_dynamic_agent_constraints(self, agent, content, payload):
         module_id = agent.removeprefix("module_")
@@ -1804,6 +1781,23 @@ class ContractValidator:
                 return None
             events.append(event)
         return events
+
+    def _validate_schema(self, value, filename, label):
+        schema_path = self.plugin_root / "schemas" / filename
+        if not schema_path.exists():
+            self.errors.append(f"{label} schema 不存在：{schema_path}")
+            return
+        schema = self._read_json(schema_path)
+        if not isinstance(schema, dict):
+            self.errors.append(f"{label} schema 顶层必须是 object。")
+            return
+        self._validate_schema_data(value, schema, label)
+
+    def _validate_schema_data(self, value, schema, label):
+        try:
+            self.errors.extend(SchemaValidator().validate(value, schema, label))
+        except SchemaValidationError as exc:
+            self.errors.append(str(exc))
 
     def _read_json(self, path):
         try:
