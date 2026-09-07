@@ -108,6 +108,9 @@
         "current_loop_target_phase": { "type": ["string", "null"], "enum": ["prd", "ui_design", "design", "initialization", "run", "requirement_alignment", null] },
         "loop_count_by_phase": {
           "type": "object",
+          "propertyNames": {
+            "enum": ["prd", "ui_design", "design", "initialization", "run", "requirement_alignment"]
+          },
           "additionalProperties": { "type": "integer", "minimum": 0 }
         },
         "last_alignment_status": { "type": ["string", "null"], "enum": ["PASS", "FAIL", "BLOCKED", null] },

@@ -51,13 +51,9 @@
         "platform_registration": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["platform", "dispatcher_path"],
+          "required": ["platform"],
           "properties": {
-            "platform": { "const": "codex" },
-            "dispatcher_path": {
-              "type": "string",
-              "pattern": "^\\.superlooper/agents/[^/]+/codex-dispatch\\.json$"
-            }
+            "platform": { "const": "codex" }
           }
         },
         "outputs_path": { "type": "string", "minLength": 1 },

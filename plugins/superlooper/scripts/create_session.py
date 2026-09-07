@@ -5,6 +5,8 @@ import re
 import sys
 from pathlib import Path
 
+from schema_validation import SchemaValidationError, SchemaValidator
+
 
 SESSION_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+$")
 PROTECTED_ROOTS = {".git", ".hg", ".svn"}
@@ -134,6 +136,12 @@ def validate_session_state(state, schema=None):
     schema = schema or load_session_schema()
     if not isinstance(state, dict):
         raise SessionStateValidationError("state 顶层必须是 object。")
+    try:
+        schema_errors = SchemaValidator().validate(state, schema, "state")
+    except SchemaValidationError as exc:
+        raise SessionStateValidationError(str(exc)) from exc
+    if schema_errors:
+        raise SessionStateValidationError("\n".join(schema_errors))
 
     properties = schema.get("properties", {})
     required = schema.get("required", [])

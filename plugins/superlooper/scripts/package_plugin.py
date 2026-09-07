@@ -7,6 +7,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+try:
+    from render_user_readme import UserReadmeError, assert_user_readme_current
+except ModuleNotFoundError:
+    from scripts.render_user_readme import UserReadmeError, assert_user_readme_current
+
 
 SUPPORTED_MODES = {"source", "install"}
 BLOCKED_PATH_PREFIXES = [
@@ -37,6 +42,7 @@ INSTALL_RUNTIME_REQUIRED_FILES = frozenset(
         "codex/skills/superlooper-resume/SKILL.md",
         "codex/skills/superlooper-doctor/SKILL.md",
         "README.md",
+        "docs/USER_GUIDE.md",
         "LICENSE",
         "commands/spl.md",
         "commands/spl/prd.md",
@@ -77,8 +83,10 @@ INSTALL_RUNTIME_REQUIRED_FILES = frozenset(
         "scripts/merge_artifacts.py",
         "scripts/normalize_user_intent.py",
         "scripts/package_plugin.py",
+        "scripts/render_user_readme.py",
         "scripts/resume_session.py",
         "scripts/run_execution_dag.py",
+        "scripts/schema_validation.py",
         "scripts/status_session.py",
         "scripts/update_session.py",
         "scripts/validate_miao_contracts.py",
@@ -202,6 +210,10 @@ class PluginPackager:
         self._reject_blocked_paths(release_files)
         self._assert_required_release_files(release_files)
         self._scan_secrets(release_files)
+        try:
+            assert_user_readme_current(self.root / "docs" / "USER_GUIDE.md", self.root / "README.md", "source")
+        except UserReadmeError as exc:
+            raise PackageError(str(exc)) from exc
         manifest = {
             "plugin_name": self._read_plugin_name(),
             "release_mode": self.mode,
