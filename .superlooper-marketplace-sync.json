@@ -1,12 +1,9 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "plugin_name": "superlooper",
   "plugin_version": "1.1.1",
-  "source_commit": "846718ca30703fb8db85ecb36e1983e351db0038",
+  "source_commit": "33e2393cdbe498c30a7b1d28f28dc2db3b3168bc",
   "managed_paths": {
-    ".agents/plugins/marketplace.json": "10308f21d10eaaa195903c220be4b658e878e372fd4926f82675498f931c0732",
-    ".claude-plugin/marketplace.json": "955f76047270313ba91092a975f824fbfa52ece26b55721e930de32b81ae6f7a",
-    "README.md": "34c766e996ec1badf88a8d031b0748e3376405368c2f87cb362c1a2892c2b3e5",
     "plugins/superlooper/.claude-plugin/plugin.json": "2d718d29df092a5bf85ed2367d118b59f7307412d4a4a6f4a6b4dbbb594186ff",
     "plugins/superlooper/.codex-plugin/plugin.json": "d20e06ee3fabbfce83b072ced1e9b70671cd03d3e83036192d8b03f9758f817f",
     "plugins/superlooper/LICENSE": "3a542e6032e377d0ee7ca1ebae192dbb04c4592d79b141a97aab61f636da1abe",
@@ -60,7 +57,7 @@
     "plugins/superlooper/scripts/merge_artifacts.py": "21f1bc9985bb53b79e0706e9f172035d50094d8916cbe472d57beb166342b256",
     "plugins/superlooper/scripts/normalize_user_intent.py": "0bf8664a4ee3ebd1cdc1117e7a93ec92eef99302ea5d9d620ce58089efede0e4",
     "plugins/superlooper/scripts/package_plugin.py": "fd8f3c26421631f2c2b5ff7603a3f19dbfb1afe51105c0d79504dfbf71c90216",
-    "plugins/superlooper/scripts/render_user_readme.py": "055427ccab7b8735b435efefc6b9bad93a178ae103cb05029c9e55caf16017a9",
+    "plugins/superlooper/scripts/render_user_readme.py": "42e5aa607373eda0527ec0090d00dd7fefeaa68b5ed49e505baa0b581b7db632",
     "plugins/superlooper/scripts/resume_session.py": "9ef6ef53f7582762904ab261f304311cedec358dcb0e17dd854f7be5762d85cc",
     "plugins/superlooper/scripts/run_execution_dag.py": "183f917f9523642a2abe238a31df4ae50bfe9e29ce3ee5ab7f26983f99dbf012",
     "plugins/superlooper/scripts/schema_validation.py": "f5fb043effc589e562fbd67310b21a0732401e8b92771da1e61d8349b4491c51",
