@@ -25,7 +25,7 @@ superAI-marketplace/
 
 | 插件 | 版本 | 说明 |
 | --- | --- | --- |
-| [superlooper](plugins/superlooper/) | 1.1.1 | Claude Code 与 Codex 双平台的 AI 并行编排工作流。 |
+| [superlooper](plugins/superlooper/) | 1.2.0 | Claude Code 与 Codex 双平台的 AI 并行编排工作流。 |
 
 ## 扩展边界
 
